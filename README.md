@@ -67,7 +67,7 @@ Portfolio rebalancing, yield optimization, risk monitoring, and automated strate
 
 ## 📝 License
 
-TBD
+[BSL 1.1](LICENSE) — Business Source License 1.1. Converts to MIT on 2030-02-11.
 
 ---
 
