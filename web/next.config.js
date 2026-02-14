@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export",
-  basePath: "/Faivr",
+  // Configured for Vercel Deployment
   images: { unoptimized: true },
 };
 module.exports = nextConfig;
