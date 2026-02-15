@@ -1,35 +1,6 @@
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
+/node_modules
+/.next
+/out
 
-# Build
-out/
-cache/
-artifacts/
-dist/
-.next/
-build/
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# Foundry
-contracts/out/
-contracts/cache/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Misc
-*.log
-coverage/
+# local env files
+.env*.local
