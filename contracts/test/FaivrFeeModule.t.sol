@@ -39,7 +39,7 @@ contract FaivrFeeModuleTest is Test {
 
         // Register an agent
         vm.prank(agentOwner);
-        agentId = identity.registerAgent("ipfs://agent1");
+        agentId = identity.register("ipfs://agent1");
 
         // Deploy fee module
         FaivrFeeModule feeImpl = new FaivrFeeModule();

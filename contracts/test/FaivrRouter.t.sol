@@ -22,7 +22,7 @@ contract FaivrRouterTest is Test {
     address public alice = makeAddr("alice");
 
     function setUp() public {
-        // Deploy all contracts behind proxies
+        // Deploy identity
         FaivrIdentityRegistry identityImpl = new FaivrIdentityRegistry();
         ERC1967Proxy identityProxy = new ERC1967Proxy(
             address(identityImpl),
@@ -30,20 +30,25 @@ contract FaivrRouterTest is Test {
         );
         identity = FaivrIdentityRegistry(address(identityProxy));
 
+        // Deploy reputation (initialized with identity registry)
         FaivrReputationRegistry repImpl = new FaivrReputationRegistry();
+        vm.prank(admin);
         ERC1967Proxy repProxy = new ERC1967Proxy(
             address(repImpl),
-            abi.encodeCall(FaivrReputationRegistry.initialize, (admin))
+            abi.encodeCall(FaivrReputationRegistry.initialize, (address(identityProxy)))
         );
         reputation = FaivrReputationRegistry(address(repProxy));
 
+        // Deploy validation
         FaivrValidationRegistry valImpl = new FaivrValidationRegistry();
+        vm.prank(admin);
         ERC1967Proxy valProxy = new ERC1967Proxy(
             address(valImpl),
-            abi.encodeCall(FaivrValidationRegistry.initialize, (admin))
+            abi.encodeCall(FaivrValidationRegistry.initialize, (address(identityProxy)))
         );
         validation = FaivrValidationRegistry(address(valProxy));
 
+        // Deploy fee module
         FaivrFeeModule feeImpl = new FaivrFeeModule();
         ERC1967Proxy feeProxy = new ERC1967Proxy(
             address(feeImpl),
@@ -53,6 +58,7 @@ contract FaivrRouterTest is Test {
         );
         feeModule = FaivrFeeModule(address(feeProxy));
 
+        // Deploy router
         FaivrRouter routerImpl = new FaivrRouter();
         ERC1967Proxy routerProxy = new ERC1967Proxy(
             address(routerImpl),

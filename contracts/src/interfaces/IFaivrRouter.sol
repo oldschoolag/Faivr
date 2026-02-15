@@ -10,10 +10,14 @@ interface IFaivrRouter {
         string calldata agentURI, address token, uint256 amount, uint256 deadline
     ) external payable returns (uint256 agentId, uint256 taskId);
 
-    function settleAndReview(
-        uint256 taskId, uint256 agentId, uint8 rating,
-        string calldata commentURI, bytes calldata signature
-    ) external returns (uint256 reviewId);
+    function settleAndGiveFeedback(
+        uint256 taskId,
+        uint256 agentId,
+        int128 value,
+        uint8 valueDecimals,
+        string calldata tag1,
+        string calldata tag2
+    ) external;
 
     function getContracts() external view returns (
         address identityRegistry, address reputationRegistry,

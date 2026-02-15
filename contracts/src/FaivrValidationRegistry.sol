@@ -4,33 +4,40 @@ pragma solidity ^0.8.24;
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import {IFaivrValidationRegistry} from "./interfaces/IFaivrValidationRegistry.sol";
 
 /// @title FaivrValidationRegistry
-/// @notice Validation requests and attestations by whitelisted validators
+/// @notice ERC-8004 compliant validation registry
 contract FaivrValidationRegistry is
     Initializable,
     UUPSUpgradeable,
     AccessControlUpgradeable,
     IFaivrValidationRegistry
 {
-    // ── Roles ────────────────────────────────────────────
-    bytes32 public constant VALIDATOR_ROLE = keccak256("VALIDATOR_ROLE");
-    bytes32 public constant VALIDATOR_MANAGER_ROLE = keccak256("VALIDATOR_MANAGER_ROLE");
+    // ── Structs (internal storage) ───────────────────────
+    struct ValidationRecord {
+        address validatorAddress;
+        uint256 agentId;
+        uint8 response;
+        bytes32 responseHash;
+        string tag;
+        uint256 lastUpdate;
+        bool exists;
+    }
 
     // ── Storage ──────────────────────────────────────────
-    uint256 private _nextRequestId;
-    uint256 private _nextAttestationId;
+    address private _identityRegistry;
 
-    mapping(uint256 requestId => ValidationRequest) private _requests;
-    mapping(uint256 attestationId => Attestation) private _attestations;
-    mapping(uint256 agentId => uint256[]) private _agentAttestationIds;
-    mapping(address => bool) private _validators;
+    /// @dev requestHash => ValidationRecord
+    mapping(bytes32 => ValidationRecord) private _records;
 
-    // Counters per agent + type
-    mapping(uint256 agentId => mapping(ValidationType => uint256)) private _passedCount;
-    mapping(uint256 agentId => mapping(ValidationType => uint256)) private _failedCount;
+    /// @dev agentId => requestHashes
+    mapping(uint256 => bytes32[]) private _agentValidations;
+
+    /// @dev validatorAddress => requestHashes
+    mapping(address => bytes32[]) private _validatorRequests;
 
     /// @custom:storage-gap
     uint256[50] private __gap;
@@ -41,122 +48,126 @@ contract FaivrValidationRegistry is
         _disableInitializers();
     }
 
-    function initialize(address admin) external initializer {
+    function initialize(address identityRegistry_) external override initializer {
         __UUPSUpgradeable_init();
         __AccessControl_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(VALIDATOR_MANAGER_ROLE, admin);
-        _nextRequestId = 1;
-        _nextAttestationId = 1;
-    }
-
-    // ── Core ─────────────────────────────────────────────
-    function requestValidation(
-        uint256 agentId,
-        ValidationType vType,
-        string calldata evidenceURI
-    ) external override returns (uint256 requestId) {
-        if (bytes(evidenceURI).length == 0) revert EmptyEvidenceURI();
-
-        requestId = _nextRequestId;
-        unchecked { _nextRequestId++; }
-
-        _requests[requestId] = ValidationRequest({
-            agentId: agentId,
-            requester: msg.sender,
-            vType: vType,
-            evidenceURI: evidenceURI,
-            status: ValidationStatus.PENDING,
-            requestedAt: block.timestamp,
-            resolvedAt: 0
-        });
-
-        emit ValidationRequested(requestId, agentId, msg.sender, vType, evidenceURI);
-    }
-
-    function submitAttestation(
-        uint256 requestId,
-        bool passed,
-        string calldata proofURI
-    ) external override returns (uint256 attestationId) {
-        if (!hasRole(VALIDATOR_ROLE, msg.sender)) revert NotValidator(msg.sender);
-
-        ValidationRequest storage req = _requests[requestId];
-        if (req.status != ValidationStatus.PENDING) revert RequestNotPending(requestId);
-
-        req.status = passed ? ValidationStatus.PASSED : ValidationStatus.FAILED;
-        req.resolvedAt = block.timestamp;
-
-        attestationId = _nextAttestationId;
-        unchecked { _nextAttestationId++; }
-
-        _attestations[attestationId] = Attestation({
-            requestId: requestId,
-            agentId: req.agentId,
-            validator: msg.sender,
-            passed: passed,
-            proofURI: proofURI,
-            vType: req.vType,
-            timestamp: block.timestamp
-        });
-
-        _agentAttestationIds[req.agentId].push(attestationId);
-
-        if (passed) {
-            unchecked { _passedCount[req.agentId][req.vType]++; }
-        } else {
-            unchecked { _failedCount[req.agentId][req.vType]++; }
-        }
-
-        emit AttestationSubmitted(attestationId, requestId, req.agentId, msg.sender, passed, proofURI);
-    }
-
-    function addValidator(address validator) external override onlyRole(VALIDATOR_MANAGER_ROLE) {
-        _grantRole(VALIDATOR_ROLE, validator);
-        _validators[validator] = true;
-        emit ValidatorUpdated(validator, true);
-    }
-
-    function removeValidator(address validator) external override onlyRole(VALIDATOR_MANAGER_ROLE) {
-        _revokeRole(VALIDATOR_ROLE, validator);
-        _validators[validator] = false;
-        emit ValidatorUpdated(validator, false);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _identityRegistry = identityRegistry_;
     }
 
     // ── Views ────────────────────────────────────────────
-    function isValidator(address validator) external view override returns (bool) {
-        return _validators[validator];
+
+    function getIdentityRegistry() external view override returns (address) {
+        return _identityRegistry;
     }
 
-    function getAttestations(uint256 agentId, uint256 offset, uint256 limit)
-        external view override returns (Attestation[] memory)
-    {
-        uint256[] storage ids = _agentAttestationIds[agentId];
-        uint256 total = ids.length;
-        if (offset >= total) return new Attestation[](0);
+    // ── Core ─────────────────────────────────────────────
 
-        uint256 end = offset + limit;
-        if (end > total) end = total;
-        uint256 size = end - offset;
+    function validationRequest(
+        address validatorAddress,
+        uint256 agentId,
+        string calldata requestURI,
+        bytes32 requestHash
+    ) external override {
+        // Must be owner or operator of agentId
+        _requireAgentOwnerOrOperator(agentId);
 
-        Attestation[] memory result = new Attestation[](size);
-        for (uint256 i; i < size;) {
-            result[i] = _attestations[ids[offset + i]];
-            unchecked { i++; }
+        // Store the record (initial state: response=0, no responseHash/tag)
+        ValidationRecord storage record = _records[requestHash];
+        if (!record.exists) {
+            record.validatorAddress = validatorAddress;
+            record.agentId = agentId;
+            record.exists = true;
+            _agentValidations[agentId].push(requestHash);
+            _validatorRequests[validatorAddress].push(requestHash);
         }
-        return result;
+        // If already exists, this is updating the request — keep same validator/agent
+
+        emit ValidationRequest(validatorAddress, agentId, requestURI, requestHash);
     }
 
-    function getRequest(uint256 requestId) external view override returns (ValidationRequest memory) {
-        return _requests[requestId];
+    function validationResponse(
+        bytes32 requestHash,
+        uint8 response,
+        string calldata responseURI,
+        bytes32 responseHash,
+        string calldata tag
+    ) external override {
+        ValidationRecord storage record = _records[requestHash];
+        if (!record.exists) revert RequestNotFound(requestHash);
+        if (msg.sender != record.validatorAddress) revert NotDesignatedValidator(requestHash);
+        if (response > 100) revert InvalidResponse(response);
+
+        record.response = response;
+        record.responseHash = responseHash;
+        record.tag = tag;
+        record.lastUpdate = block.timestamp;
+
+        emit ValidationResponse(msg.sender, record.agentId, requestHash, response, responseURI, responseHash, tag);
     }
 
-    function getValidationCount(uint256 agentId, ValidationType vType)
-        external view override returns (uint256 passed, uint256 failed)
-    {
-        passed = _passedCount[agentId][vType];
-        failed = _failedCount[agentId][vType];
+    // ── Read ─────────────────────────────────────────────
+
+    function getValidationStatus(bytes32 requestHash) external view override returns (
+        address validatorAddress,
+        uint256 agentId,
+        uint8 response,
+        bytes32 responseHash_,
+        string memory tag,
+        uint256 lastUpdate
+    ) {
+        ValidationRecord storage record = _records[requestHash];
+        return (record.validatorAddress, record.agentId, record.response, record.responseHash, record.tag, record.lastUpdate);
+    }
+
+    function getSummary(
+        uint256 agentId,
+        address[] calldata validatorAddresses,
+        string calldata tag
+    ) external view override returns (uint64 count, uint8 averageResponse) {
+        bytes32[] storage hashes = _agentValidations[agentId];
+        bytes32 tagHash = bytes(tag).length > 0 ? keccak256(bytes(tag)) : bytes32(0);
+
+        uint256 total;
+        for (uint256 i; i < hashes.length; i++) {
+            ValidationRecord storage record = _records[hashes[i]];
+            if (record.lastUpdate == 0) continue; // no response yet
+
+            // Filter by validator
+            if (validatorAddresses.length > 0) {
+                bool found;
+                for (uint256 j; j < validatorAddresses.length; j++) {
+                    if (record.validatorAddress == validatorAddresses[j]) { found = true; break; }
+                }
+                if (!found) continue;
+            }
+
+            // Filter by tag
+            if (tagHash != bytes32(0) && keccak256(bytes(record.tag)) != tagHash) continue;
+
+            total += record.response;
+            count++;
+        }
+        averageResponse = count > 0 ? uint8(total / count) : 0;
+    }
+
+    function getAgentValidations(uint256 agentId) external view override returns (bytes32[] memory) {
+        return _agentValidations[agentId];
+    }
+
+    function getValidatorRequests(address validatorAddress) external view override returns (bytes32[] memory) {
+        return _validatorRequests[validatorAddress];
+    }
+
+    // ── Internal ─────────────────────────────────────────
+
+    function _requireAgentOwnerOrOperator(uint256 agentId) internal view {
+        IERC721 registry = IERC721(_identityRegistry);
+        address owner = registry.ownerOf(agentId); // reverts if not minted
+        if (msg.sender != owner && !registry.isApprovedForAll(owner, msg.sender) && registry.getApproved(agentId) != msg.sender) {
+            revert NotAgentOwnerOrOperator(agentId);
+        }
     }
 
     // ── Upgrade ──────────────────────────────────────────

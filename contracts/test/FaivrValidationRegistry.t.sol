@@ -3,158 +3,203 @@ pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {FaivrIdentityRegistry} from "../src/FaivrIdentityRegistry.sol";
 import {FaivrValidationRegistry} from "../src/FaivrValidationRegistry.sol";
 import {IFaivrValidationRegistry} from "../src/interfaces/IFaivrValidationRegistry.sol";
 
 contract FaivrValidationRegistryTest is Test {
-    FaivrValidationRegistry public registry;
+    FaivrIdentityRegistry public identity;
+    FaivrValidationRegistry public validation;
+
     address public admin = makeAddr("admin");
-    address public validator = makeAddr("validator");
-    address public alice = makeAddr("alice");
+    address public agentOwner = makeAddr("agentOwner");
+    address public validator1 = makeAddr("validator1");
+    address public validator2 = makeAddr("validator2");
+    address public stranger = makeAddr("stranger");
+
+    uint256 public agentId;
+    bytes32 public requestHash = keccak256("test-request-payload");
 
     function setUp() public {
-        FaivrValidationRegistry impl = new FaivrValidationRegistry();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl),
-            abi.encodeCall(FaivrValidationRegistry.initialize, (admin))
+        // Deploy identity
+        FaivrIdentityRegistry idImpl = new FaivrIdentityRegistry();
+        ERC1967Proxy idProxy = new ERC1967Proxy(
+            address(idImpl),
+            abi.encodeCall(FaivrIdentityRegistry.initialize, (admin))
         );
-        registry = FaivrValidationRegistry(address(proxy));
+        identity = FaivrIdentityRegistry(address(idProxy));
 
-        // Add a validator
+        // Register an agent
+        vm.prank(agentOwner);
+        agentId = identity.register("ipfs://agent1");
+
+        // Deploy validation
+        FaivrValidationRegistry valImpl = new FaivrValidationRegistry();
         vm.prank(admin);
-        registry.addValidator(validator);
-    }
-
-    // ── Request Validation ───────────────────────────────
-
-    function test_requestValidation() public {
-        vm.prank(alice);
-        uint256 reqId = registry.requestValidation(
-            1,
-            IFaivrValidationRegistry.ValidationType.MANUAL,
-            "ipfs://evidence"
+        ERC1967Proxy valProxy = new ERC1967Proxy(
+            address(valImpl),
+            abi.encodeCall(FaivrValidationRegistry.initialize, (address(identity)))
         );
-
-        assertEq(reqId, 1);
-
-        IFaivrValidationRegistry.ValidationRequest memory req = registry.getRequest(reqId);
-        assertEq(req.agentId, 1);
-        assertEq(req.requester, alice);
-        assertTrue(req.status == IFaivrValidationRegistry.ValidationStatus.PENDING);
+        validation = FaivrValidationRegistry(address(valProxy));
     }
 
-    function test_revert_requestValidation_emptyURI() public {
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSignature("EmptyEvidenceURI()"));
-        registry.requestValidation(1, IFaivrValidationRegistry.ValidationType.MANUAL, "");
+    // ── initialize ───────────────────────────────────────
+
+    function test_getIdentityRegistry() public view {
+        assertEq(validation.getIdentityRegistry(), address(identity));
     }
 
-    // ── Submit Attestation ───────────────────────────────
+    // ── validationRequest ────────────────────────────────
 
-    function test_submitAttestation_passed() public {
-        vm.prank(alice);
-        uint256 reqId = registry.requestValidation(
-            1, IFaivrValidationRegistry.ValidationType.MANUAL, "ipfs://evidence"
-        );
+    function test_validationRequest() public {
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
 
-        vm.prank(validator);
-        uint256 attId = registry.submitAttestation(reqId, true, "ipfs://proof");
+        bytes32[] memory hashes = validation.getAgentValidations(agentId);
+        assertEq(hashes.length, 1);
+        assertEq(hashes[0], requestHash);
 
-        assertEq(attId, 1);
-
-        IFaivrValidationRegistry.ValidationRequest memory req = registry.getRequest(reqId);
-        assertTrue(req.status == IFaivrValidationRegistry.ValidationStatus.PASSED);
-        assertGt(req.resolvedAt, 0);
-
-        (uint256 passed, uint256 failed) = registry.getValidationCount(
-            1, IFaivrValidationRegistry.ValidationType.MANUAL
-        );
-        assertEq(passed, 1);
-        assertEq(failed, 0);
+        bytes32[] memory valReqs = validation.getValidatorRequests(validator1);
+        assertEq(valReqs.length, 1);
+        assertEq(valReqs[0], requestHash);
     }
 
-    function test_submitAttestation_failed() public {
-        vm.prank(alice);
-        uint256 reqId = registry.requestValidation(
-            1, IFaivrValidationRegistry.ValidationType.RE_EXECUTION, "ipfs://evidence"
-        );
-
-        vm.prank(validator);
-        registry.submitAttestation(reqId, false, "ipfs://proof-fail");
-
-        (uint256 passed, uint256 failed) = registry.getValidationCount(
-            1, IFaivrValidationRegistry.ValidationType.RE_EXECUTION
-        );
-        assertEq(passed, 0);
-        assertEq(failed, 1);
+    function test_revert_validationRequest_notOwner() public {
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(IFaivrValidationRegistry.NotAgentOwnerOrOperator.selector, agentId));
+        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
     }
 
-    function test_revert_submitAttestation_notValidator() public {
-        vm.prank(alice);
-        uint256 reqId = registry.requestValidation(
-            1, IFaivrValidationRegistry.ValidationType.MANUAL, "ipfs://evidence"
-        );
+    // ── validationResponse ───────────────────────────────
 
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(
-            IFaivrValidationRegistry.NotValidator.selector, alice
-        ));
-        registry.submitAttestation(reqId, true, "ipfs://proof");
+    function test_validationResponse() public {
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
+
+        vm.prank(validator1);
+        validation.validationResponse(requestHash, 100, "ipfs://response", bytes32(0), "passed");
+
+        (address vAddr, uint256 aId, uint8 resp, bytes32 rHash, string memory tag, uint256 lastUpdate) =
+            validation.getValidationStatus(requestHash);
+        assertEq(vAddr, validator1);
+        assertEq(aId, agentId);
+        assertEq(resp, 100);
+        assertEq(rHash, bytes32(0));
+        assertEq(tag, "passed");
+        assertGt(lastUpdate, 0);
     }
 
-    function test_revert_submitAttestation_alreadyResolved() public {
-        vm.prank(alice);
-        uint256 reqId = registry.requestValidation(
-            1, IFaivrValidationRegistry.ValidationType.MANUAL, "ipfs://evidence"
-        );
+    function test_validationResponse_multipleResponses() public {
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
 
-        vm.prank(validator);
-        registry.submitAttestation(reqId, true, "ipfs://proof");
+        vm.prank(validator1);
+        validation.validationResponse(requestHash, 50, "", bytes32(0), "soft-finality");
 
-        vm.prank(validator);
-        vm.expectRevert(abi.encodeWithSelector(
-            IFaivrValidationRegistry.RequestNotPending.selector, reqId
-        ));
-        registry.submitAttestation(reqId, false, "ipfs://proof2");
+        vm.prank(validator1);
+        validation.validationResponse(requestHash, 100, "ipfs://final", bytes32(0), "hard-finality");
+
+        (, , uint8 resp, , string memory tag,) = validation.getValidationStatus(requestHash);
+        assertEq(resp, 100);
+        assertEq(tag, "hard-finality");
     }
 
-    // ── Validator Management ─────────────────────────────
+    function test_revert_validationResponse_notDesignatedValidator() public {
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
 
-    function test_addRemoveValidator() public {
-        address newVal = makeAddr("newValidator");
-
-        vm.prank(admin);
-        registry.addValidator(newVal);
-        assertTrue(registry.isValidator(newVal));
-
-        vm.prank(admin);
-        registry.removeValidator(newVal);
-        assertFalse(registry.isValidator(newVal));
+        vm.prank(validator2); // wrong validator
+        vm.expectRevert(abi.encodeWithSelector(IFaivrValidationRegistry.NotDesignatedValidator.selector, requestHash));
+        validation.validationResponse(requestHash, 100, "", bytes32(0), "");
     }
 
-    function test_revert_addValidator_notManager() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        registry.addValidator(makeAddr("x"));
+    function test_revert_validationResponse_requestNotFound() public {
+        vm.prank(validator1);
+        vm.expectRevert(abi.encodeWithSelector(IFaivrValidationRegistry.RequestNotFound.selector, requestHash));
+        validation.validationResponse(requestHash, 100, "", bytes32(0), "");
     }
 
-    // ── Pagination ───────────────────────────────────────
+    function test_revert_validationResponse_invalidResponse() public {
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
 
-    function test_getAttestations_pagination() public {
-        // Create 3 requests + attestations
-        for (uint256 i = 0; i < 3; i++) {
-            vm.prank(alice);
-            uint256 reqId = registry.requestValidation(
-                1, IFaivrValidationRegistry.ValidationType.MANUAL, "ipfs://ev"
-            );
-            vm.prank(validator);
-            registry.submitAttestation(reqId, true, "ipfs://proof");
-        }
+        vm.prank(validator1);
+        vm.expectRevert(abi.encodeWithSelector(IFaivrValidationRegistry.InvalidResponse.selector, 101));
+        validation.validationResponse(requestHash, 101, "", bytes32(0), "");
+    }
 
-        IFaivrValidationRegistry.Attestation[] memory page = registry.getAttestations(1, 0, 2);
-        assertEq(page.length, 2);
+    // ── getSummary ───────────────────────────────────────
 
-        IFaivrValidationRegistry.Attestation[] memory page2 = registry.getAttestations(1, 2, 5);
-        assertEq(page2.length, 1);
+    function test_getSummary() public {
+        bytes32 hash1 = keccak256("req1");
+        bytes32 hash2 = keccak256("req2");
+
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req1", hash1);
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req2", hash2);
+
+        vm.prank(validator1);
+        validation.validationResponse(hash1, 80, "", bytes32(0), "");
+        vm.prank(validator1);
+        validation.validationResponse(hash2, 100, "", bytes32(0), "");
+
+        address[] memory validators = new address[](0);
+        (uint64 count, uint8 avg) = validation.getSummary(agentId, validators, "");
+        assertEq(count, 2);
+        assertEq(avg, 90);
+    }
+
+    function test_getSummary_withValidatorFilter() public {
+        bytes32 hash1 = keccak256("req1");
+        bytes32 hash2 = keccak256("req2");
+
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req1", hash1);
+        vm.prank(agentOwner);
+        validation.validationRequest(validator2, agentId, "ipfs://req2", hash2);
+
+        vm.prank(validator1);
+        validation.validationResponse(hash1, 80, "", bytes32(0), "");
+        vm.prank(validator2);
+        validation.validationResponse(hash2, 100, "", bytes32(0), "");
+
+        address[] memory validators = new address[](1);
+        validators[0] = validator1;
+        (uint64 count, uint8 avg) = validation.getSummary(agentId, validators, "");
+        assertEq(count, 1);
+        assertEq(avg, 80);
+    }
+
+    function test_getSummary_withTagFilter() public {
+        bytes32 hash1 = keccak256("req1");
+        bytes32 hash2 = keccak256("req2");
+
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req1", hash1);
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req2", hash2);
+
+        vm.prank(validator1);
+        validation.validationResponse(hash1, 80, "", bytes32(0), "zkml");
+        vm.prank(validator1);
+        validation.validationResponse(hash2, 100, "", bytes32(0), "tee");
+
+        address[] memory validators = new address[](0);
+        (uint64 count, uint8 avg) = validation.getSummary(agentId, validators, "zkml");
+        assertEq(count, 1);
+        assertEq(avg, 80);
+    }
+
+    // ── getAgentValidations / getValidatorRequests ───────
+
+    function test_getAgentValidations_empty() public view {
+        bytes32[] memory hashes = validation.getAgentValidations(999);
+        assertEq(hashes.length, 0);
+    }
+
+    function test_getValidatorRequests_empty() public view {
+        bytes32[] memory hashes = validation.getValidatorRequests(stranger);
+        assertEq(hashes.length, 0);
     }
 }

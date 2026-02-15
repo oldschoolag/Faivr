@@ -2,53 +2,67 @@
 pragma solidity ^0.8.24;
 
 /// @title IFaivrValidationRegistry
-/// @notice ERC-8004 compliant validation registry for agent attestations
+/// @notice ERC-8004 compliant validation registry
 interface IFaivrValidationRegistry {
-    enum ValidationType { MANUAL, RE_EXECUTION, ZKML, TEE }
-    enum ValidationStatus { PENDING, PASSED, FAILED, EXPIRED }
-
-    struct ValidationRequest {
-        uint256 agentId;
-        address requester;
-        ValidationType vType;
-        string evidenceURI;
-        ValidationStatus status;
-        uint256 requestedAt;
-        uint256 resolvedAt;
-    }
-
-    struct Attestation {
-        uint256 requestId;
-        uint256 agentId;
-        address validator;
-        bool passed;
-        string proofURI;
-        ValidationType vType;
-        uint256 timestamp;
-    }
-
-    event ValidationRequested(
-        uint256 indexed requestId, uint256 indexed agentId, address indexed requester,
-        ValidationType vType, string evidenceURI
+    // ── Events (ERC-8004) ────────────────────────────────
+    event ValidationRequest(
+        address indexed validatorAddress,
+        uint256 indexed agentId,
+        string requestURI,
+        bytes32 indexed requestHash
     );
-    event AttestationSubmitted(
-        uint256 indexed attestationId, uint256 indexed requestId, uint256 indexed agentId,
-        address validator, bool passed, string proofURI
+    event ValidationResponse(
+        address indexed validatorAddress,
+        uint256 indexed agentId,
+        bytes32 indexed requestHash,
+        uint8 response,
+        string responseURI,
+        bytes32 responseHash,
+        string tag
     );
-    event ValidatorUpdated(address indexed validator, bool active);
 
-    error NotValidator(address caller);
-    error NotValidatorManager(address caller);
-    error RequestNotPending(uint256 requestId);
-    error EmptyEvidenceURI();
+    // ── Errors ───────────────────────────────────────────
+    error AgentDoesNotExist(uint256 agentId);
+    error NotAgentOwnerOrOperator(uint256 agentId);
+    error NotDesignatedValidator(bytes32 requestHash);
+    error RequestNotFound(bytes32 requestHash);
+    error InvalidResponse(uint8 response);
 
-    function requestValidation(uint256 agentId, ValidationType vType, string calldata evidenceURI) external returns (uint256 requestId);
-    function submitAttestation(uint256 requestId, bool passed, string calldata proofURI) external returns (uint256 attestationId);
-    function addValidator(address validator) external;
-    function removeValidator(address validator) external;
+    // ── Core ─────────────────────────────────────────────
+    function initialize(address identityRegistry_) external;
+    function getIdentityRegistry() external view returns (address);
 
-    function isValidator(address validator) external view returns (bool);
-    function getAttestations(uint256 agentId, uint256 offset, uint256 limit) external view returns (Attestation[] memory);
-    function getRequest(uint256 requestId) external view returns (ValidationRequest memory);
-    function getValidationCount(uint256 agentId, ValidationType vType) external view returns (uint256 passed, uint256 failed);
+    function validationRequest(
+        address validatorAddress,
+        uint256 agentId,
+        string calldata requestURI,
+        bytes32 requestHash
+    ) external;
+
+    function validationResponse(
+        bytes32 requestHash,
+        uint8 response,
+        string calldata responseURI,
+        bytes32 responseHash,
+        string calldata tag
+    ) external;
+
+    // ── Read ─────────────────────────────────────────────
+    function getValidationStatus(bytes32 requestHash) external view returns (
+        address validatorAddress,
+        uint256 agentId,
+        uint8 response,
+        bytes32 responseHash,
+        string memory tag,
+        uint256 lastUpdate
+    );
+
+    function getSummary(
+        uint256 agentId,
+        address[] calldata validatorAddresses,
+        string calldata tag
+    ) external view returns (uint64 count, uint8 averageResponse);
+
+    function getAgentValidations(uint256 agentId) external view returns (bytes32[] memory requestHashes);
+    function getValidatorRequests(address validatorAddress) external view returns (bytes32[] memory requestHashes);
 }

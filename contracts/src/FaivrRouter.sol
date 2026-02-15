@@ -63,7 +63,7 @@ contract FaivrRouter is
         uint256 amount,
         uint256 deadline
     ) external payable override returns (uint256 agentId, uint256 taskId) {
-        agentId = identityRegistry.registerAgent{value: 0}(agentURI);
+        agentId = identityRegistry.register(agentURI);
 
         if (token == address(0)) {
             taskId = feeModule.fundTask{value: msg.value}(agentId, token, amount, deadline);
@@ -72,16 +72,16 @@ contract FaivrRouter is
         }
     }
 
-    function settleAndReview(
+    function settleAndGiveFeedback(
         uint256 taskId,
         uint256 agentId,
-        uint8 rating,
-        string calldata commentURI,
-        bytes calldata signature
-    ) external override returns (uint256 reviewId) {
+        int128 value,
+        uint8 valueDecimals,
+        string calldata tag1,
+        string calldata tag2
+    ) external override {
         feeModule.settleTask(taskId);
-        bytes32 taskRef = bytes32(taskId);
-        reviewId = reputationRegistry.postReview(agentId, rating, commentURI, taskRef, signature);
+        reputationRegistry.giveFeedback(agentId, value, valueDecimals, tag1, tag2, "", "", bytes32(0));
     }
 
     // ── Views ────────────────────────────────────────────
