@@ -5,3 +5,11 @@
 # local env files
 .env*.local
 .env.local
+
+# Workspace files
+SOUL.md
+IDENTITY.md
+USER.md
+AGENTS.md
+TOOLS.md
+memory/
