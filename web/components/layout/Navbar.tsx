@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { ConnectButton } from "@/components/wallet/ConnectButton";
 import { NetworkBadge } from "@/components/wallet/NetworkBadge";
@@ -22,27 +21,41 @@ export function Navbar() {
       aria-label="Main navigation"
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 py-2 -my-2" aria-label="FAIVR home">
+        {/* Logo — using native <a> for reliable mobile tapping */}
+        <a
+          href="/"
+          className="relative z-10 flex items-center gap-2.5 py-3 pr-4 -my-3 -mr-2"
+          aria-label="FAIVR home"
+        >
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-xs font-bold text-black">
             F
           </div>
           <span className="text-xl font-bold tracking-tight">FAIVR</span>
-        </Link>
+        </a>
 
         {/* Desktop nav */}
         <div className="hidden items-center gap-6 md:flex">
-          {NAV_LINKS.map((l) => (
-            <Link
-              key={l.label}
-              href={l.href}
-              target={l.external ? "_blank" : undefined}
-              rel={l.external ? "noopener noreferrer" : undefined}
-              className="text-sm text-zinc-400 transition-colors hover:text-white"
-            >
-              {l.label}
-            </Link>
-          ))}
+          {NAV_LINKS.map((l) =>
+            l.external ? (
+              <a
+                key={l.label}
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-zinc-400 transition-colors hover:text-white"
+              >
+                {l.label}
+              </a>
+            ) : (
+              <a
+                key={l.label}
+                href={l.href}
+                className="text-sm text-zinc-400 transition-colors hover:text-white"
+              >
+                {l.label}
+              </a>
+            )
+          )}
         </div>
 
         {/* Right side */}
@@ -71,7 +84,7 @@ export function Navbar() {
       >
         <div className="space-y-1 px-6 py-3">
           {NAV_LINKS.map((l) => (
-            <Link
+            <a
               key={l.label}
               href={l.href}
               target={l.external ? "_blank" : undefined}
@@ -80,7 +93,7 @@ export function Navbar() {
               onClick={() => setOpen(false)}
             >
               {l.label}
-            </Link>
+            </a>
           ))}
         </div>
       </div>
