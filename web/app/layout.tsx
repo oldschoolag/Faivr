@@ -12,12 +12,19 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "FAIVR — The Open Agent Marketplace",
   description:
-    "Discover, trust, and hire AI agents on-chain. Built on ERC-8004 + x402 on Base.",
+    "Discover, trust, and hire AI agents on-chain. Non-custodial escrow, on-chain reputation, and programmable payments powered by ERC-8004 on Base.",
+  metadataBase: new URL("https://faivr.ai"),
   openGraph: {
     title: "FAIVR — The Open Agent Marketplace",
-    description: "Discover, trust, and hire AI agents on-chain.",
+    description: "Discover, trust, and hire AI agents on-chain. Non-custodial escrow, on-chain reputation, and programmable payments.",
     siteName: "FAIVR",
     type: "website",
+    url: "https://faivr.ai",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FAIVR — The Open Agent Marketplace",
+    description: "Discover, trust, and hire AI agents on-chain.",
   },
 };
 
