@@ -3,17 +3,20 @@
 import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, MessageSquare, Percent, TrendingUp } from "lucide-react";
+import { useAccount } from "wagmi";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { AgentGrid } from "@/components/agent/AgentGrid";
 import { AgentSearch } from "@/components/agent/AgentSearch";
 import { OnboardForm } from "@/components/onboarding/OnboardForm";
+import { TaskManager } from "@/components/escrow/TaskManager";
 import { StatCard } from "@/components/ui/StatCard";
 import { useAgents } from "@/hooks/useAgents";
 import { useContractStats } from "@/hooks/useContractStats";
+import { useUserTasks } from "@/hooks/useEscrow";
 import { cn } from "@/lib/utils";
 
-const TABS = ["Marketplace", "Onboard Agent"] as const;
+const TABS = ["Marketplace", "Onboard Agent", "My Tasks"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function Home() {
@@ -21,8 +24,10 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
 
+  const { isConnected } = useAccount();
   const { agents, isLoading } = useAgents();
   const stats = useContractStats();
+  const { count: activeTaskCount } = useUserTasks();
 
   const handleSearch = useCallback((q: string) => setSearch(q), []);
   const handleFilter = useCallback((f: string) => setFilter(f), []);
@@ -97,21 +102,29 @@ export default function Home() {
         {/* Tabs */}
         <div className="mx-auto max-w-7xl px-6 pt-10">
           <div className="mb-8 inline-flex rounded-full border border-white/5 bg-white/5 p-1">
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  "rounded-full px-6 py-2 text-sm font-medium transition-all",
-                  activeTab === tab
-                    ? "bg-white text-black shadow-lg"
-                    : "text-zinc-400 hover:text-white"
-                )}
-                aria-pressed={activeTab === tab}
-              >
-                {tab}
-              </button>
-            ))}
+            {TABS.map((tab) => {
+              if (tab === "My Tasks" && !isConnected) return null;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "relative rounded-full px-6 py-2 text-sm font-medium transition-all",
+                    activeTab === tab
+                      ? "bg-white text-black shadow-lg"
+                      : "text-zinc-400 hover:text-white"
+                  )}
+                  aria-pressed={activeTab === tab}
+                >
+                  {tab}
+                  {tab === "My Tasks" && activeTaskCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
+                      {activeTaskCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <AnimatePresence mode="wait">
@@ -131,7 +144,7 @@ export default function Home() {
                 />
                 <AgentGrid agents={filtered} loading={isLoading} />
               </motion.div>
-            ) : (
+            ) : activeTab === "Onboard Agent" ? (
               <motion.div
                 key="onboard"
                 initial={{ opacity: 0, y: 8 }}
@@ -141,6 +154,17 @@ export default function Home() {
                 className="pb-16"
               >
                 <OnboardForm />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="tasks"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="pb-16"
+              >
+                <TaskManager />
               </motion.div>
             )}
           </AnimatePresence>
