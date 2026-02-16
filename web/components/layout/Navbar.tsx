@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { label: "Marketplace", href: "/" },
-  { label: "Docs", href: "https://docs.faivr.dev", external: true },
-  { label: "GitHub", href: "https://github.com/nicholasoxford/faivr", external: true },
+  { label: "Docs", href: "https://github.com/oldschoolag/Faivr/tree/main/docs", external: true },
+  { label: "GitHub", href: "https://github.com/oldschoolag/Faivr", external: true },
 ];
 
 export function Navbar() {

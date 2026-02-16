@@ -60,15 +60,18 @@ const MOCK_AGENTS: AgentData[] = [
 ];
 
 export function useAgents() {
-  const { data: agentCount, isLoading } = useReadContract({
+  const { data: agentCount, isLoading, isError } = useReadContract({
     address: CONTRACTS.identity,
     abi: IDENTITY_ABI,
     functionName: "agentCount",
   });
 
-  // Fallback to mock data until real agents are registered
+  // Show mock data immediately — don't block on contract reads
   const count = agentCount ? Number(agentCount) : 0;
   const agents = count > 0 ? MOCK_AGENTS.slice(0, count) : MOCK_AGENTS;
 
-  return { agents, isLoading, count };
+  // Only show loading if we're actually connected and fetching
+  const showLoading = isLoading && !isError;
+
+  return { agents, isLoading: false, count };
 }

@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 const LINKS = [
-  { label: "GitHub", href: "https://github.com/nicholasoxford/faivr" },
+  { label: "GitHub", href: "https://github.com/oldschoolag/Faivr" },
   { label: "Basescan", href: "https://sepolia.basescan.org/address/0x2c954A4E93DdA93b09C679c4DAc6e04758b8f490" },
-  { label: "Docs", href: "https://docs.faivr.dev" },
+  { label: "Docs", href: "https://github.com/oldschoolag/Faivr/tree/main/docs" },
 ];
 
 export function Footer() {
