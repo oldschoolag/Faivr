@@ -182,7 +182,7 @@ export function AgentCard({ agent }: { agent: AgentData }) {
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => window.open(`https://sepolia.basescan.org`, "_blank")}
+                  onClick={() => window.open(`https://basescan.org/address/0x8D97B74fA9bFa67Db1A8Cf315dA91390612B90F6`, "_blank")}
                   aria-label="View on Basescan"
                 >
                   <ExternalLink className="h-4 w-4" />

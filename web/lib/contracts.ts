@@ -1,8 +1,18 @@
 import { type Address } from "viem";
 
-export const CHAIN_ID = 84532; // Base Sepolia
+// Base Mainnet
+export const CHAIN_ID = 8453;
 
 export const CONTRACTS = {
+  identity: "0x8D97B74fA9bFa67Db1A8Cf315dA91390612B90F6" as Address,
+  reputation: "0x00280bc9cFF156a8E8E9aE7c54029B74902a829c" as Address,
+  validation: "0x95DF02B02e2D777E0fcB80F83c061500C112F05b" as Address,
+  feeModule: "0xD68D402Bb450A79D8e639e41F0455990A223E47F" as Address,
+  router: "0x7EC51888ecd3E47c6F4cF324474041790C8aB7fa" as Address,
+};
+
+// Sepolia testnet addresses (kept for reference)
+export const CONTRACTS_SEPOLIA = {
   identity: "0x2c954A4E93DdA93b09C679c4DAc6e04758b8f490" as Address,
   reputation: "0x1Eb4a1283EdEA00d42BaA66B785729808CE90A72" as Address,
   validation: "0x442E20eb5e801daD5F5fe603825d8fa780F5cd0e" as Address,
@@ -12,14 +22,14 @@ export const CONTRACTS = {
 
 export const IDENTITY_ABI = [
   {
-    name: "registerAgent",
+    name: "register",
     type: "function",
-    stateMutability: "payable",
+    stateMutability: "nonpayable",
     inputs: [{ name: "agentURI", type: "string" }],
     outputs: [{ name: "agentId", type: "uint256" }],
   },
   {
-    name: "updateAgentURI",
+    name: "setAgentURI",
     type: "function",
     stateMutability: "nonpayable",
     inputs: [
@@ -78,12 +88,12 @@ export const IDENTITY_ABI = [
     outputs: [{ name: "timestamp", type: "uint256" }],
   },
   {
-    name: "AgentRegistered",
+    name: "Registered",
     type: "event",
     inputs: [
       { name: "agentId", type: "uint256", indexed: true },
-      { name: "owner", type: "address", indexed: true },
       { name: "agentURI", type: "string", indexed: false },
+      { name: "owner", type: "address", indexed: true },
     ],
   },
 ] as const;
@@ -151,24 +161,51 @@ export const FEE_MODULE_ABI = [
     inputs: [{ name: "token", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
   },
+  {
+    name: "TaskFunded",
+    type: "event",
+    inputs: [
+      { name: "taskId", type: "uint256", indexed: true },
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "client", type: "address", indexed: true },
+      { name: "token", type: "address", indexed: false },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "deadline", type: "uint256", indexed: false },
+    ],
+  },
 ] as const;
 
 export const REPUTATION_ABI = [
   {
-    name: "getAverageRating",
+    name: "giveFeedback",
     type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "agentId", type: "uint256" }],
-    outputs: [
-      { name: "average", type: "uint256" },
-      { name: "count", type: "uint256" },
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "value", type: "int128" },
+      { name: "valueDecimals", type: "uint8" },
+      { name: "tag1", type: "string" },
+      { name: "tag2", type: "string" },
+      { name: "endpoint", type: "string" },
+      { name: "feedbackURI", type: "string" },
+      { name: "feedbackHash", type: "bytes32" },
     ],
+    outputs: [],
   },
   {
-    name: "totalReviews",
+    name: "getSummary",
     type: "function",
     stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "count", type: "uint256" }],
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "clientAddresses", type: "address[]" },
+      { name: "tag1", type: "string" },
+      { name: "tag2", type: "string" },
+    ],
+    outputs: [
+      { name: "count", type: "uint64" },
+      { name: "summaryValue", type: "int128" },
+      { name: "summaryValueDecimals", type: "uint8" },
+    ],
   },
 ] as const;
