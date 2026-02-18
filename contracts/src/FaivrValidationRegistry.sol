@@ -39,8 +39,11 @@ contract FaivrValidationRegistry is
     /// @dev validatorAddress => requestHashes
     mapping(address => bytes32[]) private _validatorRequests;
 
+    /// @dev Per-agent nonce for request hash generation (H-04)
+    mapping(uint256 => uint256) private _requestNonces;
+
     /// @custom:storage-gap
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -49,6 +52,8 @@ contract FaivrValidationRegistry is
     }
 
     function initialize(address identityRegistry_) external override initializer {
+        if (identityRegistry_ == address(0)) revert ZeroAddress();
+
         __UUPSUpgradeable_init();
         __AccessControl_init();
 
@@ -68,23 +73,23 @@ contract FaivrValidationRegistry is
         address validatorAddress,
         uint256 agentId,
         string calldata requestURI,
-        bytes32 requestHash
+        bytes32 /* requestHash — ignored, computed on-chain (H-04) */
     ) external override {
         // Must be owner or operator of agentId
         _requireAgentOwnerOrOperator(agentId);
 
-        // Store the record (initial state: response=0, no responseHash/tag)
-        ValidationRecord storage record = _records[requestHash];
-        if (!record.exists) {
-            record.validatorAddress = validatorAddress;
-            record.agentId = agentId;
-            record.exists = true;
-            _agentValidations[agentId].push(requestHash);
-            _validatorRequests[validatorAddress].push(requestHash);
-        }
-        // If already exists, this is updating the request — keep same validator/agent
+        // H-04: Compute hash on-chain to prevent front-running
+        uint256 nonce = _requestNonces[agentId]++;
+        bytes32 computedHash = keccak256(abi.encode(msg.sender, validatorAddress, agentId, nonce));
 
-        emit ValidationRequest(validatorAddress, agentId, requestURI, requestHash);
+        ValidationRecord storage record = _records[computedHash];
+        record.validatorAddress = validatorAddress;
+        record.agentId = agentId;
+        record.exists = true;
+        _agentValidations[agentId].push(computedHash);
+        _validatorRequests[validatorAddress].push(computedHash);
+
+        emit ValidationRequest(validatorAddress, agentId, requestURI, computedHash);
     }
 
     function validationResponse(
@@ -149,7 +154,49 @@ contract FaivrValidationRegistry is
             total += record.response;
             count++;
         }
-        averageResponse = count > 0 ? uint8(total / count) : 0;
+        if (count > 0) {
+            uint256 avg = total / count;
+            require(avg <= type(uint8).max, "SafeCast: uint8 overflow");
+            averageResponse = uint8(avg);
+        }
+    }
+
+    function getSummaryPaginated(
+        uint256 agentId,
+        address[] calldata validatorAddresses,
+        string calldata tag,
+        uint256 offset,
+        uint256 limit
+    ) external view override returns (uint64 count, uint8 averageResponse) {
+        bytes32[] storage hashes = _agentValidations[agentId];
+        bytes32 tagHash = bytes(tag).length > 0 ? keccak256(bytes(tag)) : bytes32(0);
+
+        uint256 end = offset + limit;
+        if (end > hashes.length) end = hashes.length;
+
+        uint256 total;
+        for (uint256 i = offset; i < end; i++) {
+            ValidationRecord storage record = _records[hashes[i]];
+            if (record.lastUpdate == 0) continue;
+
+            if (validatorAddresses.length > 0) {
+                bool found;
+                for (uint256 j; j < validatorAddresses.length; j++) {
+                    if (record.validatorAddress == validatorAddresses[j]) { found = true; break; }
+                }
+                if (!found) continue;
+            }
+
+            if (tagHash != bytes32(0) && keccak256(bytes(record.tag)) != tagHash) continue;
+
+            total += record.response;
+            count++;
+        }
+        if (count > 0) {
+            uint256 avg = total / count;
+            require(avg <= type(uint8).max, "SafeCast: uint8 overflow");
+            averageResponse = uint8(avg);
+        }
     }
 
     function getAgentValidations(uint256 agentId) external view override returns (bytes32[] memory) {

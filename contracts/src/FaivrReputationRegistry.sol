@@ -52,6 +52,8 @@ contract FaivrReputationRegistry is
     }
 
     function initialize(address identityRegistry_) external override initializer {
+        if (identityRegistry_ == address(0)) revert ZeroAddress();
+
         __UUPSUpgradeable_init();
         __AccessControl_init();
 
@@ -131,6 +133,14 @@ contract FaivrReputationRegistry is
             revert FeedbackNotFound(agentId, clientAddress, feedbackIndex);
         }
 
+        // H-03: Only agent owner/operator or the feedback author may respond
+        address agentOwner = IERC721(_identityRegistry).ownerOf(agentId);
+        bool isAgentOwnerOrOperator = (msg.sender == agentOwner)
+            || IERC721(_identityRegistry).isApprovedForAll(agentOwner, msg.sender)
+            || (IERC721(_identityRegistry).getApproved(agentId) == msg.sender);
+        bool isFeedbackAuthor = (msg.sender == clientAddress);
+        if (!isAgentOwnerOrOperator && !isFeedbackAuthor) revert NotFeedbackOwner();
+
         _responseCounts[agentId][clientAddress][feedbackIndex][msg.sender]++;
 
         emit ResponseAppended(agentId, clientAddress, feedbackIndex, msg.sender, responseURI, responseHash);
@@ -162,7 +172,11 @@ contract FaivrReputationRegistry is
                 count++;
             }
         }
-        summaryValue = count > 0 ? int128(total / int256(int64(count))) : int128(0);
+        if (count > 0) {
+            int256 avg = total / int256(uint256(count));
+            require(avg >= type(int128).min && avg <= type(int128).max, "SafeCast: int128 overflow");
+            summaryValue = int128(avg);
+        }
         summaryValueDecimals = 0; // average inherits decimals from input values
     }
 
@@ -243,6 +257,165 @@ contract FaivrReputationRegistry is
                 tag2s[idx] = entry.tag2;
                 revokedStatuses[idx] = entry.isRevoked;
                 idx++;
+            }
+        }
+    }
+
+    function getSummaryPaginated(
+        uint256 agentId,
+        address[] calldata clientAddresses,
+        string calldata tag1,
+        string calldata tag2,
+        uint256 offset,
+        uint256 limit
+    ) external view override returns (uint64 count, int128 summaryValue, uint8 summaryValueDecimals) {
+        if (clientAddresses.length == 0) revert EmptyClientAddresses();
+
+        PaginatedReadParams memory p = PaginatedReadParams({
+            agentId: agentId,
+            includeRevoked: false,
+            tag1Hash: bytes(tag1).length > 0 ? keccak256(bytes(tag1)) : bytes32(0),
+            tag2Hash: bytes(tag2).length > 0 ? keccak256(bytes(tag2)) : bytes32(0),
+            offset: offset,
+            limit: limit
+        });
+
+        int256 total;
+        uint256 seen;
+        uint256 collected;
+        for (uint256 i; i < clientAddresses.length && collected < p.limit; i++) {
+            uint64 lastIdx = _lastIndex[p.agentId][clientAddresses[i]];
+            for (uint64 j = 1; j <= lastIdx && collected < p.limit; j++) {
+                FeedbackEntry storage entry = _feedback[p.agentId][clientAddresses[i]][j];
+                if (entry.isRevoked) continue;
+                if (p.tag1Hash != bytes32(0) && keccak256(bytes(entry.tag1)) != p.tag1Hash) continue;
+                if (p.tag2Hash != bytes32(0) && keccak256(bytes(entry.tag2)) != p.tag2Hash) continue;
+                if (seen >= p.offset) {
+                    total += int256(entry.value);
+                    count++;
+                    collected++;
+                }
+                seen++;
+            }
+        }
+        if (count > 0) {
+            int256 avg = total / int256(uint256(count));
+            require(avg >= type(int128).min && avg <= type(int128).max, "SafeCast: int128 overflow");
+            summaryValue = int128(avg);
+        }
+        summaryValueDecimals = 0;
+    }
+
+    /// @dev Parameters for paginated feedback reading (avoids stack-too-deep)
+    struct PaginatedReadParams {
+        uint256 agentId;
+        bool includeRevoked;
+        bytes32 tag1Hash;
+        bytes32 tag2Hash;
+        uint256 offset;
+        uint256 limit;
+    }
+
+    function readAllFeedbackPaginated(
+        uint256 agentId,
+        address[] calldata clientAddresses,
+        string calldata tag1,
+        string calldata tag2,
+        bool includeRevoked,
+        uint256 offset,
+        uint256 limit
+    ) external view override returns (
+        address[] memory clients,
+        uint64[] memory feedbackIndexes,
+        int128[] memory values,
+        uint8[] memory valueDecimals_,
+        string[] memory tag1s,
+        string[] memory tag2s,
+        bool[] memory revokedStatuses
+    ) {
+        PaginatedReadParams memory p = PaginatedReadParams({
+            agentId: agentId,
+            includeRevoked: includeRevoked,
+            tag1Hash: bytes(tag1).length > 0 ? keccak256(bytes(tag1)) : bytes32(0),
+            tag2Hash: bytes(tag2).length > 0 ? keccak256(bytes(tag2)) : bytes32(0),
+            offset: offset,
+            limit: limit
+        });
+
+        address[] memory searchClients;
+        if (clientAddresses.length > 0) {
+            searchClients = clientAddresses;
+        } else {
+            searchClients = _clients[agentId];
+        }
+
+        // Allocate max-size arrays in struct
+        FeedbackArrays memory out;
+        out.clients = new address[](limit);
+        out.feedbackIndexes = new uint64[](limit);
+        out.values = new int128[](limit);
+        out.valueDecimals_ = new uint8[](limit);
+        out.tag1s = new string[](limit);
+        out.tag2s = new string[](limit);
+        out.revokedStatuses = new bool[](limit);
+
+        uint256 collected = _fillPaginatedFeedback(p, searchClients, out);
+
+        clients = out.clients;
+        feedbackIndexes = out.feedbackIndexes;
+        values = out.values;
+        valueDecimals_ = out.valueDecimals_;
+        tag1s = out.tag1s;
+        tag2s = out.tag2s;
+        revokedStatuses = out.revokedStatuses;
+
+        // Trim arrays to actual size
+        assembly {
+            mstore(clients, collected)
+            mstore(feedbackIndexes, collected)
+            mstore(values, collected)
+            mstore(valueDecimals_, collected)
+            mstore(tag1s, collected)
+            mstore(tag2s, collected)
+            mstore(revokedStatuses, collected)
+        }
+    }
+
+    /// @dev Output struct for paginated feedback (avoids stack-too-deep)
+    struct FeedbackArrays {
+        address[] clients;
+        uint64[] feedbackIndexes;
+        int128[] values;
+        uint8[] valueDecimals_;
+        string[] tag1s;
+        string[] tag2s;
+        bool[] revokedStatuses;
+    }
+
+    function _fillPaginatedFeedback(
+        PaginatedReadParams memory p,
+        address[] memory searchClients,
+        FeedbackArrays memory out
+    ) private view returns (uint256 collected) {
+        uint256 seen;
+        for (uint256 i; i < searchClients.length && collected < p.limit; i++) {
+            uint64 lastIdx = _lastIndex[p.agentId][searchClients[i]];
+            for (uint64 j = 1; j <= lastIdx && collected < p.limit; j++) {
+                FeedbackEntry storage entry = _feedback[p.agentId][searchClients[i]][j];
+                if (!p.includeRevoked && entry.isRevoked) continue;
+                if (p.tag1Hash != bytes32(0) && keccak256(bytes(entry.tag1)) != p.tag1Hash) continue;
+                if (p.tag2Hash != bytes32(0) && keccak256(bytes(entry.tag2)) != p.tag2Hash) continue;
+                if (seen >= p.offset) {
+                    out.clients[collected] = searchClients[i];
+                    out.feedbackIndexes[collected] = j;
+                    out.values[collected] = entry.value;
+                    out.valueDecimals_[collected] = entry.valueDecimals;
+                    out.tag1s[collected] = entry.tag1;
+                    out.tag2s[collected] = entry.tag2;
+                    out.revokedStatuses[collected] = entry.isRevoked;
+                    collected++;
+                }
+                seen++;
             }
         }
     }

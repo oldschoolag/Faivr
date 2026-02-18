@@ -136,11 +136,11 @@ contract FaivrReputationRegistryTest is Test {
         vm.prank(client1);
         reputation.giveFeedback(agentId, 87, 0, "", "", "", "", bytes32(0));
 
-        vm.prank(responder);
+        vm.prank(agentOwner);
         reputation.appendResponse(agentId, client1, 1, "ipfs://response", bytes32(0));
 
         address[] memory responders = new address[](1);
-        responders[0] = responder;
+        responders[0] = agentOwner;
         uint64 count = reputation.getResponseCount(agentId, client1, 1, responders);
         assertEq(count, 1);
     }

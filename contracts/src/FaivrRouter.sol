@@ -63,12 +63,12 @@ contract FaivrRouter is
         uint256 amount,
         uint256 deadline
     ) external payable override returns (uint256 agentId, uint256 taskId) {
-        agentId = identityRegistry.register(agentURI);
+        agentId = identityRegistry.registerFor(msg.sender, agentURI);
 
         if (token == address(0)) {
-            taskId = feeModule.fundTask{value: msg.value}(agentId, token, amount, deadline);
+            taskId = feeModule.fundTaskFor{value: msg.value}(agentId, token, amount, deadline, msg.sender);
         } else {
-            taskId = feeModule.fundTask(agentId, token, amount, deadline);
+            taskId = feeModule.fundTaskFor(agentId, token, amount, deadline, msg.sender);
         }
     }
 
@@ -80,7 +80,7 @@ contract FaivrRouter is
         string calldata tag1,
         string calldata tag2
     ) external override {
-        feeModule.settleTask(taskId);
+        feeModule.settleTaskFor(taskId, msg.sender);
         reputationRegistry.giveFeedback(agentId, value, valueDecimals, tag1, tag2, "", "", bytes32(0));
     }
 

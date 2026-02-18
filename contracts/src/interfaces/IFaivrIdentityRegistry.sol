@@ -32,6 +32,7 @@ interface IFaivrIdentityRegistry {
     function register(string calldata agentURI, MetadataEntry[] calldata metadata) external returns (uint256 agentId);
     function register(string calldata agentURI) external returns (uint256 agentId);
     function register() external returns (uint256 agentId);
+    function registerFor(address to, string calldata agentURI) external returns (uint256 agentId);
 
     // ── ERC-8004 URI ─────────────────────────────────────
     function setAgentURI(uint256 agentId, string calldata newURI) external;

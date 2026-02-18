@@ -27,6 +27,7 @@ interface IFaivrFeeModule {
     );
     event TaskReclaimed(uint256 indexed taskId, address indexed client, uint256 amount);
     event FeeUpdated(uint256 oldFee, uint256 newFee, uint256 effectiveAt);
+    event MaxEscrowUpdated(uint256 oldMax, uint256 newMax);
 
     error ZeroAmount();
     error InvalidDeadline();
@@ -37,9 +38,12 @@ interface IFaivrFeeModule {
     error ETHTransferFailed();
     error MsgValueMismatch();
     error ZeroAddress();
+    error EscrowCapExceeded(uint256 amount, uint256 max);
 
     function fundTask(uint256 agentId, address token, uint256 amount, uint256 deadline) external payable returns (uint256 taskId);
+    function fundTaskFor(uint256 agentId, address token, uint256 amount, uint256 deadline, address client) external payable returns (uint256 taskId);
     function settleTask(uint256 taskId) external;
+    function settleTaskFor(uint256 taskId, address caller) external;
     function reclaimTask(uint256 taskId) external;
 
     function setFeePercentage(uint256 feeBps) external;
@@ -51,4 +55,6 @@ interface IFaivrFeeModule {
     function protocolWallet() external view returns (address);
     function devWallet() external view returns (address);
     function totalFeesCollected(address token) external view returns (uint256);
+    function pendingWithdrawal(address account) external view returns (uint256);
+    function withdrawPending() external;
 }

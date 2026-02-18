@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Zap } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Zap, CheckCircle, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { CONTRACTS, IDENTITY_ABI } from "@/lib/contracts";
 
 const CATEGORIES = ["DeFi", "Security", "Data", "Trading", "Marketing", "Other"];
 
@@ -13,16 +15,77 @@ export function OnboardForm() {
   const [description, setDescription] = useState("");
   const [mcpEndpoint, setMcpEndpoint] = useState("");
   const [a2aEndpoint, setA2aEndpoint] = useState("");
-  const [minting, setMinting] = useState(false);
+  const [agentId, setAgentId] = useState<number | null>(null);
+
+  const { address, isConnected } = useAccount();
+  const { writeContract, data: txHash, isPending, error: writeError, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
 
   const isValid = name.trim().length > 0 && description.trim().length > 0;
+  const minting = isPending || isConfirming;
+
+  // Parse agent ID from Registered event logs
+  useEffect(() => {
+    if (isSuccess && receipt?.logs) {
+      for (const log of receipt.logs) {
+        if (log.topics[0] === "0x17d0c8d1e73832c5e10eee72c3cf7f4e3591d29590a498a370a85e377f71790e") {
+          // Registered event — agentId is topics[1]
+          const id = parseInt(log.topics[1] ?? "0", 16);
+          if (id > 0) setAgentId(id);
+          break;
+        }
+      }
+    }
+  }, [isSuccess, receipt]);
 
   const handleMint = () => {
-    if (!isValid) return;
-    setMinting(true);
-    // TODO: contract write
-    setTimeout(() => setMinting(false), 2000);
+    if (!isValid || !isConnected) return;
+
+    const agentURI = JSON.stringify({
+      name: name.trim(),
+      description: description.trim(),
+      category,
+      mcpEndpoint: mcpEndpoint.trim() || undefined,
+      a2aEndpoint: a2aEndpoint.trim() || undefined,
+    });
+
+    writeContract({
+      address: CONTRACTS.identity,
+      abi: IDENTITY_ABI,
+      functionName: "register",
+      args: [agentURI],
+    });
   };
+
+  if (isSuccess) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <Card padding="lg" className="text-center space-y-4">
+          <div className="flex justify-center">
+            <CheckCircle className="h-16 w-16 text-emerald-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-white">🎉 Agent Registered!</h2>
+          <p className="text-zinc-400">
+            Your agent <span className="font-semibold text-white">{name}</span> has been minted on Base.
+            {agentId && (
+              <span className="block mt-1 text-emerald-400 font-mono">Agent ID: #{agentId}</span>
+            )}
+          </p>
+          <div className="flex justify-center gap-3 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => window.open(`https://basescan.org/tx/${txHash}`, "_blank")}
+            >
+              View on Basescan
+            </Button>
+            <Button onClick={() => { reset(); setAgentId(null); setName(""); setDescription(""); setMcpEndpoint(""); setA2aEndpoint(""); }}>
+              Register Another
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -34,6 +97,15 @@ export function OnboardForm() {
           Join the open marketplace in minutes.
         </p>
       </div>
+
+      {!isConnected && (
+        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <Wallet className="h-5 w-5 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-200">
+            Connect your wallet to mint an Identity NFT for your agent.
+          </p>
+        </div>
+      )}
 
       <Card padding="lg" className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -122,16 +194,31 @@ export function OnboardForm() {
           />
         </div>
 
+        {writeError && (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+            <p className="text-sm text-red-400">
+              {writeError.message.includes("User rejected") ? "Transaction rejected." : "Transaction failed. Please try again."}
+            </p>
+          </div>
+        )}
+
+        {isConfirming && (
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+            <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+            <p className="text-sm text-emerald-400">Confirming transaction...</p>
+          </div>
+        )}
+
         <Button
           size="lg"
           className="w-full rounded-2xl py-4 text-base font-bold group"
-          disabled={!isValid}
+          disabled={!isValid || !isConnected}
           loading={minting}
           onClick={handleMint}
           aria-label="Mint Identity NFT"
         >
           <Plus className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" aria-hidden="true" />
-          Mint Identity NFT
+          {!isConnected ? "Connect Wallet to Mint" : "Mint Identity NFT"}
         </Button>
       </Card>
     </div>

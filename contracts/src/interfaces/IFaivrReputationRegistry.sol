@@ -36,6 +36,7 @@ interface IFaivrReputationRegistry {
     error FeedbackAlreadyRevoked(uint256 agentId, address clientAddress, uint64 feedbackIndex);
     error NotFeedbackOwner();
     error EmptyClientAddresses();
+    error ZeroAddress();
 
     // ── Core ─────────────────────────────────────────────
     function initialize(address identityRegistry_) external;
@@ -98,6 +99,33 @@ interface IFaivrReputationRegistry {
         uint64 feedbackIndex,
         address[] calldata responders
     ) external view returns (uint64 count);
+
+    function getSummaryPaginated(
+        uint256 agentId,
+        address[] calldata clientAddresses,
+        string calldata tag1,
+        string calldata tag2,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (uint64 count, int128 summaryValue, uint8 summaryValueDecimals);
+
+    function readAllFeedbackPaginated(
+        uint256 agentId,
+        address[] calldata clientAddresses,
+        string calldata tag1,
+        string calldata tag2,
+        bool includeRevoked,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (
+        address[] memory clients,
+        uint64[] memory feedbackIndexes,
+        int128[] memory values,
+        uint8[] memory valueDecimals_,
+        string[] memory tag1s,
+        string[] memory tag2s,
+        bool[] memory revokedStatuses
+    );
 
     function getClients(uint256 agentId) external view returns (address[] memory);
     function getLastIndex(uint256 agentId, address clientAddress) external view returns (uint64);

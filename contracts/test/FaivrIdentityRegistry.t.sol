@@ -137,9 +137,10 @@ contract FaivrIdentityRegistryTest is Test {
         uint256 agentId = registry.register("ipfs://agent");
 
         uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = registry.walletNonce(agentId);
         bytes32 structHash = keccak256(abi.encode(
             registry.SET_AGENT_WALLET_TYPEHASH(),
-            agentId, walletAddr, deadline
+            agentId, walletAddr, nonce, deadline
         ));
         bytes32 domainSep = _getDomainSeparator();
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSep, structHash));
@@ -167,9 +168,10 @@ contract FaivrIdentityRegistryTest is Test {
 
         uint256 deadline = block.timestamp + 1 hours;
         // Wrong signer
+        uint256 nonce = registry.walletNonce(agentId);
         bytes32 structHash = keccak256(abi.encode(
             registry.SET_AGENT_WALLET_TYPEHASH(),
-            agentId, walletAddr, deadline
+            agentId, walletAddr, nonce, deadline
         ));
         bytes32 domainSep = _getDomainSeparator();
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSep, structHash));

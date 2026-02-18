@@ -26,8 +26,9 @@ contract FaivrIdentityRegistry is
 
     // ── Constants ────────────────────────────────────────
     bytes32 private constant _AGENT_WALLET_KEY_HASH = keccak256(bytes("agentWallet"));
+    bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
     bytes32 public constant SET_AGENT_WALLET_TYPEHASH = keccak256(
-        "SetAgentWallet(uint256 agentId,address newWallet,uint256 deadline)"
+        "SetAgentWallet(uint256 agentId,address newWallet,uint256 nonce,uint256 deadline)"
     );
 
     // ── Storage ──────────────────────────────────────────
@@ -37,8 +38,11 @@ contract FaivrIdentityRegistry is
     mapping(uint256 agentId => mapping(bytes32 keyHash => bytes)) private _metadata;
     mapping(uint256 agentId => address) private _agentWallets;
 
+    /// @dev Per-agent nonce for setAgentWallet replay protection (H-05)
+    mapping(uint256 agentId => uint256) private _walletNonces;
+
     /// @custom:storage-gap
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -85,21 +89,26 @@ contract FaivrIdentityRegistry is
         agentId = _registerInternal(msg.sender, "");
     }
 
+    /// @notice Register an agent on behalf of another address. Requires REGISTRAR_ROLE.
+    function registerFor(address to, string calldata agentURI) external onlyRole(REGISTRAR_ROLE) returns (uint256 agentId) {
+        agentId = _registerInternal(to, agentURI);
+    }
+
     function _registerInternal(address owner, string memory agentURI) internal returns (uint256 agentId) {
         agentId = _nextAgentId;
         unchecked { _nextAgentId++; }
+
+        // Set state BEFORE _safeMint to prevent reentrancy (H-02)
+        _agentActive[agentId] = true;
+        _registeredAt[agentId] = block.timestamp;
+        _agentWallets[agentId] = owner;
 
         _safeMint(owner, agentId);
         if (bytes(agentURI).length > 0) {
             _setTokenURI(agentId, agentURI);
         }
-        _agentActive[agentId] = true;
-        _registeredAt[agentId] = block.timestamp;
 
-        // Set agentWallet to owner by default
-        _agentWallets[agentId] = owner;
         emit MetadataSet(agentId, "agentWallet", "agentWallet", abi.encodePacked(owner));
-
         emit Registered(agentId, agentURI, owner);
     }
 
@@ -138,11 +147,14 @@ contract FaivrIdentityRegistry is
         _requireOwnerOrApproved(agentId);
         if (block.timestamp > deadline) revert SignatureExpired();
 
-        // Verify the new wallet signed the EIP-712 message
+        uint256 nonce = _walletNonces[agentId];
+
+        // Verify the new wallet signed the EIP-712 message (includes nonce for replay protection — H-05)
         bytes32 structHash = keccak256(abi.encode(
             SET_AGENT_WALLET_TYPEHASH,
             agentId,
             newWallet,
+            nonce,
             deadline
         ));
         bytes32 digest = _hashTypedDataV4(structHash);
@@ -150,8 +162,14 @@ contract FaivrIdentityRegistry is
         bool valid = SignatureChecker.isValidSignatureNow(newWallet, digest, signature);
         if (!valid) revert InvalidSignature();
 
+        _walletNonces[agentId] = nonce + 1;
         _agentWallets[agentId] = newWallet;
         emit MetadataSet(agentId, "agentWallet", "agentWallet", abi.encodePacked(newWallet));
+    }
+
+    /// @notice Get the current wallet nonce for an agent (for EIP-712 signing)
+    function walletNonce(uint256 agentId) external view returns (uint256) {
+        return _walletNonces[agentId];
     }
 
     function getAgentWallet(uint256 agentId) external view override returns (address) {

@@ -51,6 +51,10 @@ contract FaivrFeeModuleTest is Test {
         );
         feeModule = FaivrFeeModule(address(feeProxy));
 
+        // Remove escrow cap for testing
+        vm.prank(admin);
+        feeModule.setMaxEscrowAmount(0);
+
         // Deploy mock USDC
         usdc = new MockUSDC();
     }
@@ -292,5 +296,42 @@ contract FaivrFeeModuleTest is Test {
 
         uint256 totalFee = 1 ether * 250 / 10_000;
         assertEq(feeModule.totalFeesCollected(address(0)), totalFee);
+    }
+
+    // ── Escrow Cap Tests ─────────────────────────────────
+    function test_escrowCap_enforced() public {
+        vm.prank(admin);
+        feeModule.setMaxEscrowAmount(0.1 ether);
+
+        vm.deal(alice, 1 ether);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IFaivrFeeModule.EscrowCapExceeded.selector, 0.5 ether, 0.1 ether));
+        feeModule.fundTask{value: 0.5 ether}(agentId, address(0), 0.5 ether, 1 days);
+    }
+
+    function test_escrowCap_allowsUnderLimit() public {
+        vm.prank(admin);
+        feeModule.setMaxEscrowAmount(0.1 ether);
+
+        vm.deal(alice, 0.1 ether);
+        vm.prank(alice);
+        uint256 taskId = feeModule.fundTask{value: 0.05 ether}(agentId, address(0), 0.05 ether, 1 days);
+        assertEq(taskId, 1);
+    }
+
+    function test_escrowCap_zeroMeansUnlimited() public {
+        vm.prank(admin);
+        feeModule.setMaxEscrowAmount(0);
+
+        vm.deal(alice, 100 ether);
+        vm.prank(alice);
+        uint256 taskId = feeModule.fundTask{value: 100 ether}(agentId, address(0), 100 ether, 1 days);
+        assertEq(taskId, 1);
+    }
+
+    function test_escrowCap_onlyFeeManager() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        feeModule.setMaxEscrowAmount(1 ether);
     }
 }

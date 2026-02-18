@@ -9,6 +9,7 @@ export const CONTRACTS = {
   validation: "0x95DF02B02e2D777E0fcB80F83c061500C112F05b" as Address,
   feeModule: "0xD68D402Bb450A79D8e639e41F0455990A223E47F" as Address,
   router: "0x7EC51888ecd3E47c6F4cF324474041790C8aB7fa" as Address,
+  verification: "0x6654FA7d6eE8A0f6641a5535AeE346115f06e161" as Address,
 };
 
 // Sepolia testnet addresses (kept for reference)
@@ -207,5 +208,67 @@ export const REPUTATION_ABI = [
       { name: "summaryValue", type: "int128" },
       { name: "summaryValueDecimals", type: "uint8" },
     ],
+  },
+] as const;
+
+export const VERIFICATION_ABI = [
+  {
+    name: "verify",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "domain", type: "string" },
+      { name: "method", type: "uint8" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "revoke",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "isVerified",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "getVerification",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "domain", type: "string" },
+          { name: "method", type: "uint8" },
+          { name: "verifiedAt", type: "uint256" },
+          { name: "expiresAt", type: "uint256" },
+          { name: "verified", type: "bool" },
+          { name: "tokenId", type: "uint256" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "expiryPeriod",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "setExpiryPeriod",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "newPeriod", type: "uint256" }],
+    outputs: [],
   },
 ] as const;

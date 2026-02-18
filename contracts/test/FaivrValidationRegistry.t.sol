@@ -18,7 +18,6 @@ contract FaivrValidationRegistryTest is Test {
     address public stranger = makeAddr("stranger");
 
     uint256 public agentId;
-    bytes32 public requestHash = keccak256("test-request-payload");
 
     function setUp() public {
         // Deploy identity
@@ -53,28 +52,28 @@ contract FaivrValidationRegistryTest is Test {
 
     function test_validationRequest() public {
         vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
+        validation.validationRequest(validator1, agentId, "ipfs://request", bytes32(0));
 
         bytes32[] memory hashes = validation.getAgentValidations(agentId);
         assertEq(hashes.length, 1);
-        assertEq(hashes[0], requestHash);
 
         bytes32[] memory valReqs = validation.getValidatorRequests(validator1);
         assertEq(valReqs.length, 1);
-        assertEq(valReqs[0], requestHash);
+        assertEq(valReqs[0], hashes[0]);
     }
 
     function test_revert_validationRequest_notOwner() public {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(IFaivrValidationRegistry.NotAgentOwnerOrOperator.selector, agentId));
-        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
+        validation.validationRequest(validator1, agentId, "ipfs://request", bytes32(0));
     }
 
     // ── validationResponse ───────────────────────────────
 
     function test_validationResponse() public {
         vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
+        validation.validationRequest(validator1, agentId, "ipfs://request", bytes32(0));
+        bytes32 requestHash = validation.getAgentValidations(agentId)[0];
 
         vm.prank(validator1);
         validation.validationResponse(requestHash, 100, "ipfs://response", bytes32(0), "passed");
@@ -91,7 +90,8 @@ contract FaivrValidationRegistryTest is Test {
 
     function test_validationResponse_multipleResponses() public {
         vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
+        validation.validationRequest(validator1, agentId, "ipfs://request", bytes32(0));
+        bytes32 requestHash = validation.getAgentValidations(agentId)[0];
 
         vm.prank(validator1);
         validation.validationResponse(requestHash, 50, "", bytes32(0), "soft-finality");
@@ -106,7 +106,8 @@ contract FaivrValidationRegistryTest is Test {
 
     function test_revert_validationResponse_notDesignatedValidator() public {
         vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
+        validation.validationRequest(validator1, agentId, "ipfs://request", bytes32(0));
+        bytes32 requestHash = validation.getAgentValidations(agentId)[0];
 
         vm.prank(validator2); // wrong validator
         vm.expectRevert(abi.encodeWithSelector(IFaivrValidationRegistry.NotDesignatedValidator.selector, requestHash));
@@ -114,6 +115,7 @@ contract FaivrValidationRegistryTest is Test {
     }
 
     function test_revert_validationResponse_requestNotFound() public {
+        bytes32 requestHash = keccak256("nonexistent");
         vm.prank(validator1);
         vm.expectRevert(abi.encodeWithSelector(IFaivrValidationRegistry.RequestNotFound.selector, requestHash));
         validation.validationResponse(requestHash, 100, "", bytes32(0), "");
@@ -121,7 +123,8 @@ contract FaivrValidationRegistryTest is Test {
 
     function test_revert_validationResponse_invalidResponse() public {
         vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://request", requestHash);
+        validation.validationRequest(validator1, agentId, "ipfs://request", bytes32(0));
+        bytes32 requestHash = validation.getAgentValidations(agentId)[0];
 
         vm.prank(validator1);
         vm.expectRevert(abi.encodeWithSelector(IFaivrValidationRegistry.InvalidResponse.selector, 101));
@@ -131,18 +134,17 @@ contract FaivrValidationRegistryTest is Test {
     // ── getSummary ───────────────────────────────────────
 
     function test_getSummary() public {
-        bytes32 hash1 = keccak256("req1");
-        bytes32 hash2 = keccak256("req2");
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req1", bytes32(0));
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req2", bytes32(0));
 
-        vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://req1", hash1);
-        vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://req2", hash2);
+        bytes32[] memory hashes = validation.getAgentValidations(agentId);
 
         vm.prank(validator1);
-        validation.validationResponse(hash1, 80, "", bytes32(0), "");
+        validation.validationResponse(hashes[0], 80, "", bytes32(0), "");
         vm.prank(validator1);
-        validation.validationResponse(hash2, 100, "", bytes32(0), "");
+        validation.validationResponse(hashes[1], 100, "", bytes32(0), "");
 
         address[] memory validators = new address[](0);
         (uint64 count, uint8 avg) = validation.getSummary(agentId, validators, "");
@@ -151,18 +153,17 @@ contract FaivrValidationRegistryTest is Test {
     }
 
     function test_getSummary_withValidatorFilter() public {
-        bytes32 hash1 = keccak256("req1");
-        bytes32 hash2 = keccak256("req2");
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req1", bytes32(0));
+        vm.prank(agentOwner);
+        validation.validationRequest(validator2, agentId, "ipfs://req2", bytes32(0));
 
-        vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://req1", hash1);
-        vm.prank(agentOwner);
-        validation.validationRequest(validator2, agentId, "ipfs://req2", hash2);
+        bytes32[] memory hashes = validation.getAgentValidations(agentId);
 
         vm.prank(validator1);
-        validation.validationResponse(hash1, 80, "", bytes32(0), "");
+        validation.validationResponse(hashes[0], 80, "", bytes32(0), "");
         vm.prank(validator2);
-        validation.validationResponse(hash2, 100, "", bytes32(0), "");
+        validation.validationResponse(hashes[1], 100, "", bytes32(0), "");
 
         address[] memory validators = new address[](1);
         validators[0] = validator1;
@@ -172,18 +173,17 @@ contract FaivrValidationRegistryTest is Test {
     }
 
     function test_getSummary_withTagFilter() public {
-        bytes32 hash1 = keccak256("req1");
-        bytes32 hash2 = keccak256("req2");
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req1", bytes32(0));
+        vm.prank(agentOwner);
+        validation.validationRequest(validator1, agentId, "ipfs://req2", bytes32(0));
 
-        vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://req1", hash1);
-        vm.prank(agentOwner);
-        validation.validationRequest(validator1, agentId, "ipfs://req2", hash2);
+        bytes32[] memory hashes = validation.getAgentValidations(agentId);
 
         vm.prank(validator1);
-        validation.validationResponse(hash1, 80, "", bytes32(0), "zkml");
+        validation.validationResponse(hashes[0], 80, "", bytes32(0), "zkml");
         vm.prank(validator1);
-        validation.validationResponse(hash2, 100, "", bytes32(0), "tee");
+        validation.validationResponse(hashes[1], 100, "", bytes32(0), "tee");
 
         address[] memory validators = new address[](0);
         (uint64 count, uint8 avg) = validation.getSummary(agentId, validators, "zkml");

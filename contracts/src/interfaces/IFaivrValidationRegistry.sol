@@ -27,6 +27,7 @@ interface IFaivrValidationRegistry {
     error NotDesignatedValidator(bytes32 requestHash);
     error RequestNotFound(bytes32 requestHash);
     error InvalidResponse(uint8 response);
+    error ZeroAddress();
 
     // ── Core ─────────────────────────────────────────────
     function initialize(address identityRegistry_) external;
@@ -61,6 +62,14 @@ interface IFaivrValidationRegistry {
         uint256 agentId,
         address[] calldata validatorAddresses,
         string calldata tag
+    ) external view returns (uint64 count, uint8 averageResponse);
+
+    function getSummaryPaginated(
+        uint256 agentId,
+        address[] calldata validatorAddresses,
+        string calldata tag,
+        uint256 offset,
+        uint256 limit
     ) external view returns (uint64 count, uint8 averageResponse);
 
     function getAgentValidations(uint256 agentId) external view returns (bytes32[] memory requestHashes);

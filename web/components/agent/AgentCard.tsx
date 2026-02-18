@@ -1,6 +1,7 @@
 "use client";
 
 import { Shield, Star, X, Zap, ExternalLink } from "lucide-react";
+import { VerifiedBadge } from "@/components/verification/VerifiedBadge";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -15,6 +16,8 @@ export interface AgentData {
   reviews: number;
   tags: string[];
   validated: boolean;
+  verified?: boolean;
+  isExample?: boolean;
 }
 
 const GRADIENT_COLORS = [
@@ -66,8 +69,14 @@ export function AgentCard({ agent }: { agent: AgentData }) {
         </div>
 
         {/* Body */}
-        <h3 className="mb-1.5 text-lg font-bold tracking-tight text-white">
+        <h3 className="mb-1.5 flex items-center gap-1.5 text-lg font-bold tracking-tight text-white">
           {agent.name}
+          {agent.verified && <VerifiedBadge size="sm" />}
+          {agent.isExample && (
+            <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
+              Example
+            </span>
+          )}
         </h3>
         <p className="mb-5 line-clamp-2 text-sm leading-relaxed text-zinc-400">
           {agent.description}
@@ -119,7 +128,10 @@ export function AgentCard({ agent }: { agent: AgentData }) {
                     {agent.name[0]}
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-white">{agent.name}</h2>
+                    <h2 className="flex items-center gap-2 text-xl font-bold text-white">
+                      {agent.name}
+                      {agent.verified && <VerifiedBadge size="md" />}
+                    </h2>
                     <div className="flex items-center gap-3 mt-1">
                       <div className="flex items-center gap-1 text-sm">
                         <Star className="h-3.5 w-3.5 fill-emerald-500 text-emerald-500" />
