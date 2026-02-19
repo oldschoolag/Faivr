@@ -1,6 +1,8 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "./providers";
 import SupportChat from "@/components/support/SupportChat";
 
@@ -52,6 +54,8 @@ export default function RootLayout({
         <Providers>
           {children}
           <SupportChat />
+          <Analytics />
+          <SpeedInsights />
         </Providers>
       </body>
     </html>
