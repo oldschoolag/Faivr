@@ -18,6 +18,7 @@ export interface AgentData {
   validated: boolean;
   verified?: boolean;
   isExample?: boolean;
+  isGenesis?: boolean;
 }
 
 const GRADIENT_COLORS = [
@@ -72,6 +73,12 @@ export function AgentCard({ agent }: { agent: AgentData }) {
         <h3 className="mb-1.5 flex items-center gap-1.5 text-lg font-bold tracking-tight text-white">
           {agent.name}
           {agent.verified && <VerifiedBadge size="sm" />}
+          {agent.isGenesis && (
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+              <svg className="h-2.5 w-2.5" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l2.5 5.5L16 6.5l-4 4 1 5.5L8 13l-5 3 1-5.5-4-4 5.5-1z"/></svg>
+              Genesis
+            </span>
+          )}
           {agent.isExample && (
             <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
               Example
@@ -131,6 +138,12 @@ export function AgentCard({ agent }: { agent: AgentData }) {
                     <h2 className="flex items-center gap-2 text-xl font-bold text-white">
                       {agent.name}
                       {agent.verified && <VerifiedBadge size="md" />}
+                      {agent.isGenesis && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-400">
+                          <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l2.5 5.5L16 6.5l-4 4 1 5.5L8 13l-5 3 1-5.5-4-4 5.5-1z"/></svg>
+                          Genesis
+                        </span>
+                      )}
                     </h2>
                     <div className="flex items-center gap-3 mt-1">
                       <div className="flex items-center gap-1 text-sm">

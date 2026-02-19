@@ -57,4 +57,18 @@ interface IFaivrFeeModule {
     function totalFeesCollected(address token) external view returns (uint256);
     function pendingWithdrawal(address account) external view returns (uint256);
     function withdrawPending() external;
+
+    // ── Genesis Program ──────────────────────────────────
+    event GenesisAgentAdded(address indexed agent);
+    event GenesisAgentRemoved(address indexed agent);
+
+    error GenesisCapReached();
+    error AlreadyGenesisAgent();
+    error NotGenesisAgent();
+
+    function addGenesisAgent(address agent) external;
+    function removeGenesisAgent(address agent) external;
+    function isGenesisAgent(address agent) external view returns (bool);
+    function genesisTasksUsed(address agent) external view returns (uint8);
+    function genesisAgentCount() external view returns (uint256);
 }

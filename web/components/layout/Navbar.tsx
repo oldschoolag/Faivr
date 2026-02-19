@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { label: "Marketplace", href: "/" },
+  { label: "Genesis", href: "/genesis", highlight: true },
   { label: "Docs", href: "/docs" },
   { label: "GitHub", href: "https://github.com/oldschoolag/Faivr", external: true },
 ];
@@ -50,8 +51,16 @@ export function Navbar() {
               <a
                 key={l.label}
                 href={l.href}
-                className="text-sm text-zinc-400 transition-colors hover:text-white"
+                className={cn(
+                  "text-sm transition-colors",
+                  l.highlight
+                    ? "font-semibold text-amber-400 hover:text-amber-300"
+                    : "text-zinc-400 hover:text-white"
+                )}
               >
+                {l.highlight && (
+                  <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                )}
                 {l.label}
               </a>
             )
@@ -89,9 +98,17 @@ export function Navbar() {
               href={l.href}
               target={l.external ? "_blank" : undefined}
               rel={l.external ? "noopener noreferrer" : undefined}
-              className="block rounded-lg px-3 py-2 text-sm text-zinc-400 hover:bg-white/5 hover:text-white"
+              className={cn(
+                "block rounded-lg px-3 py-2 text-sm hover:bg-white/5",
+                l.highlight
+                  ? "font-semibold text-amber-400 hover:text-amber-300"
+                  : "text-zinc-400 hover:text-white"
+              )}
               onClick={() => setOpen(false)}
             >
+              {l.highlight && (
+                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              )}
               {l.label}
             </a>
           ))}

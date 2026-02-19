@@ -50,8 +50,16 @@ contract FaivrFeeModule is
     /// @dev Maximum escrow amount per task (0 = unlimited)
     uint256 private _maxEscrowAmount;
 
-    /// @custom:storage-gap
-    uint256[49] private __gap;
+    // ── Genesis Program Storage ──────────────────────────
+    mapping(address => bool) private _genesisAgents;
+    mapping(address => uint8) private _genesisTasksUsed;
+    uint256 private _genesisAgentCount;
+
+    uint256 public constant GENESIS_MAX_AGENTS = 50;
+    uint8 public constant GENESIS_FREE_TASKS = 10;
+
+    /// @custom:storage-gap  (49 - 3 new slots = 46)
+    uint256[46] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -166,7 +174,12 @@ contract FaivrFeeModule is
         task.status = TaskStatus.SETTLED;
         task.settledAt = block.timestamp;
 
-        uint256 totalFee = (task.amount * _feeBps) / 10_000;
+        bool genesisExempt = _genesisAgents[task.client] && _genesisTasksUsed[task.client] < GENESIS_FREE_TASKS;
+        if (genesisExempt) {
+            _genesisTasksUsed[task.client]++;
+        }
+
+        uint256 totalFee = genesisExempt ? 0 : (task.amount * _feeBps) / 10_000;
         uint256 protocolFee = (totalFee * 90) / 100;
         uint256 devFee = totalFee - protocolFee;
         uint256 agentPayout = task.amount - totalFee;
@@ -203,7 +216,12 @@ contract FaivrFeeModule is
         task.status = TaskStatus.SETTLED;
         task.settledAt = block.timestamp;
 
-        uint256 totalFee = (task.amount * _feeBps) / 10_000;
+        bool genesisExempt = _genesisAgents[task.client] && _genesisTasksUsed[task.client] < GENESIS_FREE_TASKS;
+        if (genesisExempt) {
+            _genesisTasksUsed[task.client]++;
+        }
+
+        uint256 totalFee = genesisExempt ? 0 : (task.amount * _feeBps) / 10_000;
         uint256 protocolFee = (totalFee * 90) / 100;
         uint256 devFee = totalFee - protocolFee;
         uint256 agentPayout = task.amount - totalFee;
@@ -323,6 +341,39 @@ contract FaivrFeeModule is
             // Escrow for pull withdrawal instead of reverting
             _pendingWithdrawals[to] += amount;
         }
+    }
+
+    // ── Genesis Program ─────────────────────────────────
+    function addGenesisAgent(address agent) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (agent == address(0)) revert ZeroAddress();
+        if (_genesisAgents[agent]) revert AlreadyGenesisAgent();
+        if (_genesisAgentCount >= GENESIS_MAX_AGENTS) revert GenesisCapReached();
+
+        _genesisAgents[agent] = true;
+        _genesisAgentCount++;
+
+        emit GenesisAgentAdded(agent);
+    }
+
+    function removeGenesisAgent(address agent) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (!_genesisAgents[agent]) revert NotGenesisAgent();
+
+        _genesisAgents[agent] = false;
+        _genesisAgentCount--;
+
+        emit GenesisAgentRemoved(agent);
+    }
+
+    function isGenesisAgent(address agent) external view returns (bool) {
+        return _genesisAgents[agent];
+    }
+
+    function genesisTasksUsed(address agent) external view returns (uint8) {
+        return _genesisTasksUsed[agent];
+    }
+
+    function genesisAgentCount() external view returns (uint256) {
+        return _genesisAgentCount;
     }
 
     // ── Upgrade ──────────────────────────────────────────

@@ -176,6 +176,30 @@ export const FEE_MODULE_ABI = [
   },
 ] as const;
 
+export const GENESIS_ABI = [
+  {
+    name: "isGenesisAgent",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agent", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "genesisAgentCount",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "genesisTasksUsed",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agent", type: "address" }],
+    outputs: [{ name: "", type: "uint8" }],
+  },
+] as const;
+
 export const REPUTATION_ABI = [
   {
     name: "giveFeedback",
