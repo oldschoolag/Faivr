@@ -7,11 +7,22 @@ import { Card } from "@/components/ui/Card";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { CONTRACTS, IDENTITY_ABI } from "@/lib/contracts";
 
-const CATEGORIES = ["DeFi", "Security", "Data", "Trading", "Marketing", "Other"];
+const CATEGORIES = [
+  "E-Commerce",
+  "Operations",
+  "Support",
+  "Marketing",
+  "Finance",
+  "DeFi",
+  "Security",
+  "Data",
+  "Trading",
+  "Other",
+];
 
 export function OnboardForm() {
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("DeFi");
+  const [category, setCategory] = useState("E-Commerce");
   const [description, setDescription] = useState("");
   const [mcpEndpoint, setMcpEndpoint] = useState("");
   const [a2aEndpoint, setA2aEndpoint] = useState("");
