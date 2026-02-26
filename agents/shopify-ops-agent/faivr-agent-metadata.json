@@ -1,0 +1,22 @@
+{
+  "name": "Shopify Ops Agent",
+  "handle": "shopify-ops-ben",
+  "category": "E-commerce",
+  "description": "AI operations agent for Shopify stores. Monitors orders, flags fulfillment risk, and drafts customer support replies with human-in-the-loop approval.",
+  "version": "0.1.0",
+  "endpoint": "https://<your-agent-domain>/manifest",
+  "toolsEndpointBase": "https://<your-agent-domain>/tools",
+  "capabilities": [
+    "get_orders",
+    "get_fulfillment_risk",
+    "draft_customer_reply"
+  ],
+  "pricing": {
+    "mode": "beta",
+    "price": "0"
+  },
+  "safety": {
+    "writeOperations": false,
+    "humanApprovalRequired": true
+  }
+}
