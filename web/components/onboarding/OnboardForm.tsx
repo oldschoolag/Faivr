@@ -20,10 +20,19 @@ const CATEGORIES = [
   "Other",
 ];
 
+const BUSINESS_MODELS = ["Task Escrow", "Milestone Escrow", "Retainer / Subscription"];
+const PRICING_MODELS = ["Fixed per task", "Tiered", "Hourly cap", "Monthly retainer", "Custom"];
+
 export function OnboardForm() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("E-Commerce");
   const [description, setDescription] = useState("");
+  const [businessModel, setBusinessModel] = useState("Task Escrow");
+  const [pricingModel, setPricingModel] = useState("Fixed per task");
+  const [acceptedToken, setAcceptedToken] = useState("USDC (Base)");
+  const [minimumFunding, setMinimumFunding] = useState("");
+  const [sla, setSla] = useState("");
+  const [refundPolicy, setRefundPolicy] = useState("");
   const [mcpEndpoint, setMcpEndpoint] = useState("");
   const [a2aEndpoint, setA2aEndpoint] = useState("");
   const [agentId, setAgentId] = useState<number | null>(null);
@@ -32,7 +41,11 @@ export function OnboardForm() {
   const { writeContract, data: txHash, isPending, error: writeError, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const isValid = name.trim().length > 0 && description.trim().length > 0;
+  const isValid = name.trim().length > 0
+    && description.trim().length > 0
+    && minimumFunding.trim().length > 0
+    && sla.trim().length > 0
+    && refundPolicy.trim().length > 0;
   const minting = isPending || isConfirming;
 
   // Parse agent ID from Registered event logs
@@ -56,6 +69,12 @@ export function OnboardForm() {
       name: name.trim(),
       description: description.trim(),
       category,
+      businessModel,
+      pricingModel,
+      acceptedToken,
+      minimumFunding: minimumFunding.trim(),
+      sla: sla.trim(),
+      refundPolicy: refundPolicy.trim(),
       mcpEndpoint: mcpEndpoint.trim() || undefined,
       a2aEndpoint: a2aEndpoint.trim() || undefined,
     });
@@ -89,7 +108,7 @@ export function OnboardForm() {
             >
               View on Basescan
             </Button>
-            <Button onClick={() => { reset(); setAgentId(null); setName(""); setDescription(""); setMcpEndpoint(""); setA2aEndpoint(""); }}>
+            <Button onClick={() => { reset(); setAgentId(null); setName(""); setDescription(""); setBusinessModel("Task Escrow"); setPricingModel("Fixed per task"); setAcceptedToken("USDC (Base)"); setMinimumFunding(""); setSla(""); setRefundPolicy(""); setMcpEndpoint(""); setA2aEndpoint(""); }}>
               Register Another
             </Button>
           </div>
@@ -107,6 +126,14 @@ export function OnboardForm() {
         <p className="mt-2 text-zinc-500">
           Join the open marketplace in minutes.
         </p>
+        <a
+          href="https://faivr.ai/docs"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-block text-sm text-emerald-400 hover:text-emerald-300"
+        >
+          Open Onboarding Guide ↗
+        </a>
       </div>
 
       {!isConnected && (
@@ -164,6 +191,75 @@ export function OnboardForm() {
             placeholder="What does your agent do?"
             className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-zinc-700 transition-colors focus:border-emerald-500/50 focus:outline-none"
           />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-zinc-400">Business model</label>
+            <select
+              value={businessModel}
+              onChange={(e) => setBusinessModel(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white transition-colors focus:border-emerald-500/50 focus:outline-none"
+            >
+              {BUSINESS_MODELS.map((option) => (<option key={option} value={option}>{option}</option>))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-zinc-400">Pricing model</label>
+            <select
+              value={pricingModel}
+              onChange={(e) => setPricingModel(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white transition-colors focus:border-emerald-500/50 focus:outline-none"
+            >
+              {PRICING_MODELS.map((option) => (<option key={option} value={option}>{option}</option>))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-zinc-400">Accepted token</label>
+            <input
+              type="text"
+              value={acceptedToken}
+              onChange={(e) => setAcceptedToken(e.target.value)}
+              placeholder="USDC (Base)"
+              className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-zinc-700 transition-colors focus:border-emerald-500/50 focus:outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-zinc-400">Minimum funding *</label>
+            <input
+              type="text"
+              value={minimumFunding}
+              onChange={(e) => setMinimumFunding(e.target.value)}
+              placeholder="e.g. 500 USDC / 0.05 ETH"
+              className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-zinc-700 transition-colors focus:border-emerald-500/50 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-zinc-400">SLA / response time *</label>
+            <input
+              type="text"
+              value={sla}
+              onChange={(e) => setSla(e.target.value)}
+              placeholder="e.g. First response < 4h"
+              className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-zinc-700 transition-colors focus:border-emerald-500/50 focus:outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-zinc-400">Refund / cancellation policy *</label>
+            <input
+              type="text"
+              value={refundPolicy}
+              onChange={(e) => setRefundPolicy(e.target.value)}
+              placeholder="e.g. 7-day pro-rata cancellation"
+              className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-zinc-700 transition-colors focus:border-emerald-500/50 focus:outline-none"
+            />
+          </div>
         </div>
 
         {/* MCP Endpoint */}

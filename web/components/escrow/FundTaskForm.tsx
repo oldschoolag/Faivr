@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { ArrowLeft, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 import { Button } from "@/components/ui/Button";
 import { useFundTask } from "@/hooks/useEscrow";
 
@@ -15,6 +15,8 @@ const DEADLINE_OPTIONS = [
 ] as const;
 
 const FEE_PCT = 2.5;
+const BASE_MAINNET_CHAIN_ID = 8453;
+const MIN_ESCROW_ETH = 0.01;
 
 interface FundTaskFormProps {
   agentId: number;
@@ -24,7 +26,8 @@ interface FundTaskFormProps {
 }
 
 export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFormProps) {
-  const { isConnected } = useAccount();
+  const { isConnected, chain } = useAccount();
+  const { switchChain, isPending: isSwitching } = useSwitchChain();
   const [amount, setAmount] = useState("");
   const [deadlineIdx, setDeadlineIdx] = useState(2); // default 24h
   const [description, setDescription] = useState("");
@@ -36,11 +39,14 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
     return isNaN(n) || n <= 0 ? 0 : n;
   }, [amount]);
 
+  const isBase = chain?.id === BASE_MAINNET_CHAIN_ID;
+  const belowMinimum = parsedAmount > 0 && parsedAmount < MIN_ESCROW_ETH;
+
   const agentReceives = parsedAmount * (1 - FEE_PCT / 100);
   const protocolFee = parsedAmount * (FEE_PCT / 100);
 
   const handleSubmit = () => {
-    if (!parsedAmount) return;
+    if (!parsedAmount || belowMinimum || !isBase) return;
     fundTask(agentId, amount, DEADLINE_OPTIONS[deadlineIdx].seconds);
   };
 
@@ -70,11 +76,15 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
   const isWorking = isPending || isConfirming;
   const buttonLabel = !isConnected
     ? "Connect Wallet First"
-    : isPending
-      ? "Confirm in Wallet…"
-      : isConfirming
-        ? "Confirming…"
-        : "Fund Task";
+    : !isBase
+      ? "Switch to Base to Continue"
+      : belowMinimum
+        ? `Minimum ${MIN_ESCROW_ETH} ETH required`
+        : isPending
+          ? "Confirm in Wallet…"
+          : isConfirming
+            ? "Confirming…"
+            : "Fund Task";
 
   return (
     <div>
@@ -90,7 +100,28 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
       <h3 className="text-lg font-bold text-white mb-1">
         Hire {agentName}
       </h3>
-      <p className="text-sm text-zinc-500 mb-6">Fund an escrow task on-chain</p>
+      <p className="text-sm text-zinc-500 mb-4">Fund an escrow task on-chain</p>
+
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 mb-4 space-y-1.5 text-xs">
+        <div className="flex justify-between gap-4"><span className="text-zinc-500">Business model</span><span className="text-zinc-200">Task Escrow</span></div>
+        <div className="flex justify-between gap-4"><span className="text-zinc-500">Accepted token</span><span className="text-zinc-200">ETH (escrow) · USDC-first roadmap</span></div>
+        <div className="flex justify-between gap-4"><span className="text-zinc-500">Minimum escrow</span><span className="text-zinc-200">{MIN_ESCROW_ETH} ETH</span></div>
+        <p className="text-zinc-500 pt-1">ETH is currently used for escrow on this flow. On Base, ETH pays gas; USDC-first funding UX is being rolled out.</p>
+      </div>
+
+      {!isBase && isConnected && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 mb-4 text-sm text-amber-200 space-y-2">
+          <p>FAIVR currently supports <span className="font-semibold">Base Mainnet</span> for this action. You are on <span className="font-semibold">{chain?.name ?? "another network"}</span>.</p>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={isSwitching}
+            onClick={() => switchChain({ chainId: BASE_MAINNET_CHAIN_ID })}
+          >
+            {isSwitching ? "Switching…" : "Switch to Base"}
+          </Button>
+        </div>
+      )}
 
       {/* Amount */}
       <label className="block text-xs font-medium text-zinc-400 mb-1.5">Amount</label>
@@ -108,9 +139,10 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
           ETH
         </span>
       </div>
+      {belowMinimum && <p className="text-xs text-amber-300 mb-4">Minimum escrow is {MIN_ESCROW_ETH} ETH.</p>}
 
-      {/* Deadline */}
-      <label className="block text-xs font-medium text-zinc-400 mb-1.5">Deadline</label>
+      {/* Task due date */}
+      <label className="block text-xs font-medium text-zinc-400 mb-1.5">Task due by (completion)</label>
       <select
         value={deadlineIdx}
         onChange={(e) => setDeadlineIdx(Number(e.target.value))}
@@ -161,7 +193,7 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
       <Button
         className="w-full"
         variant="accent"
-        disabled={!isConnected || !parsedAmount || isWorking}
+        disabled={!isConnected || !parsedAmount || belowMinimum || !isBase || isWorking}
         onClick={handleSubmit}
       >
         {isWorking && <Loader2 className="h-4 w-4 animate-spin" />}
