@@ -30,7 +30,6 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const [amount, setAmount] = useState("");
   const [deadlineIdx, setDeadlineIdx] = useState(2); // default 24h
-  const [description, setDescription] = useState("");
 
   const { fundTask, isPending, isConfirming, isSuccess, taskId, error, reset } = useFundTask();
 
@@ -104,8 +103,9 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
 
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 mb-4 space-y-1.5 text-xs">
         <div className="flex justify-between gap-4"><span className="text-zinc-500">Business model</span><span className="text-zinc-200">Task Escrow</span></div>
+        <div className="flex justify-between gap-4"><span className="text-zinc-500">Network</span><span className="text-zinc-200">Base</span></div>
         <div className="flex justify-between gap-4"><span className="text-zinc-500">Preferred token</span><span className="text-zinc-200">USDC (Base)</span></div>
-        <div className="flex justify-between gap-4"><span className="text-zinc-500">Current escrow rail</span><span className="text-zinc-200">ETH</span></div>
+        <div className="flex justify-between gap-4"><span className="text-zinc-500">Current escrow rail</span><span className="text-zinc-200">ETH (temporary)</span></div>
         <div className="flex justify-between gap-4"><span className="text-zinc-500">Minimum escrow</span><span className="text-zinc-200">{MIN_ESCROW_ETH} ETH</span></div>
         <p className="text-zinc-500 pt-1">USDC is the primary business currency. This escrow flow currently settles in ETH; ETH also covers Base gas.</p>
       </div>
@@ -155,18 +155,6 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
           </option>
         ))}
       </select>
-
-      {/* Description */}
-      <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-        Description <span className="text-zinc-600">(optional)</span>
-      </label>
-      <textarea
-        rows={2}
-        placeholder="What should the agent do?"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-2.5 text-white placeholder-zinc-600 outline-none focus:border-emerald-500/50 transition-colors mb-4 resize-none"
-      />
 
       {/* Fee breakdown */}
       {parsedAmount > 0 && (
