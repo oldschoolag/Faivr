@@ -12,7 +12,7 @@ export function useContractStats() {
     agentCount: agentCount ? Number(agentCount) : 0,
     totalReviews: 0,
     protocolFee: "2.5%",
-    totalVolume: "0 ETH",
+    totalVolume: "0 USDC", // USDC-first marketplace volume display
     isLoading: false,
   };
 }
