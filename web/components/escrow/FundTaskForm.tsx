@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ArrowLeft, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, CheckCircle2, Loader2, AlertCircle, MessageCircle, ListChecks } from "lucide-react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { Button } from "@/components/ui/Button";
 import { useFundTask } from "@/hooks/useEscrow";
@@ -18,6 +19,10 @@ const FEE_PCT = 2.5;
 const BASE_MAINNET_CHAIN_ID = 8453;
 const MIN_ESCROW_ETH = 0.01;
 
+function toAgentSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
 interface FundTaskFormProps {
   agentId: number;
   agentName: string;
@@ -26,6 +31,7 @@ interface FundTaskFormProps {
 }
 
 export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFormProps) {
+  const router = useRouter();
   const { isConnected, chain } = useAccount();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const [amount, setAmount] = useState("");
@@ -51,6 +57,8 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
 
   // Success state
   if (isSuccess) {
+    const slug = toAgentSlug(agentName);
+
     return (
       <div className="text-center py-6">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
@@ -62,12 +70,27 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
             Task ID: <span className="font-mono text-emerald-400">#{taskId.toString()}</span>
           </p>
         )}
-        <p className="text-sm text-zinc-500 mb-6">
+        <p className="text-sm text-zinc-500 mb-4">
           {parsedAmount} ETH escrowed for <span className="text-white">{agentName}</span>
         </p>
-        <Button variant="secondary" onClick={onClose}>
-          Done
-        </Button>
+
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 mb-5 text-left text-xs text-zinc-300 space-y-1.5">
+          <p className="font-semibold text-white">What happens next</p>
+          <p>1) Open chat and share your task details.</p>
+          <p>2) Agent works with you in-chat.</p>
+          <p>3) Settle when done, or reclaim after deadline if not delivered.</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Button onClick={() => router.push(`/chat/${slug}`)}>
+            <MessageCircle className="h-4 w-4" />
+            Open Agent Chat
+          </Button>
+          <Button variant="secondary" onClick={() => router.push("/")}>
+            <ListChecks className="h-4 w-4" />
+            Go to My Tasks
+          </Button>
+        </div>
       </div>
     );
   }
@@ -141,6 +164,13 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
         </span>
       </div>
       {belowMinimum && <p className="text-xs text-amber-300 mb-4">Minimum escrow is {MIN_ESCROW_ETH} ETH.</p>}
+
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 mb-4 text-xs text-emerald-100 space-y-1.5">
+        <p className="font-semibold">What happens after payment</p>
+        <p>• You continue in Agent Chat (this is where work happens).</p>
+        <p>• Keep the task scope and approvals in chat for traceability.</p>
+        <p>• Use My Tasks to settle when complete or reclaim after deadline.</p>
+      </div>
 
       {/* Task due date */}
       <label className="block text-xs font-medium text-zinc-400 mb-1.5">Task due by (completion)</label>

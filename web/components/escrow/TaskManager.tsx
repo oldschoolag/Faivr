@@ -2,7 +2,7 @@
 
 import { useAccount } from "wagmi";
 import { formatEther } from "viem";
-import { Clock, CheckCircle2, RotateCcw, Loader2, AlertCircle } from "lucide-react";
+import { Clock, CheckCircle2, RotateCcw, Loader2, AlertCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useUserTasks, useSettleTask, useReclaimTask, STATUS_LABELS } from "@/hooks/useEscrow";
 import type { TaskInfo } from "@/hooks/useEscrow";
@@ -27,6 +27,11 @@ function statusColor(status: number): string {
   return "text-zinc-500";
 }
 
+function toAgentSlug(name?: string): string | null {
+  if (!name) return null;
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
 function TaskCard({ task }: { task: TaskInfo }) {
   const { settleTask, isPending: settlingPending, isConfirming: settlingConfirming, error: settleError } = useSettleTask();
   const { reclaimTask, isPending: reclaimPending, isConfirming: reclaimConfirming, error: reclaimError } = useReclaimTask();
@@ -39,6 +44,7 @@ function TaskCard({ task }: { task: TaskInfo }) {
   const reclaiming = reclaimPending || reclaimConfirming;
 
   const error = settleError || reclaimError;
+  const agentSlug = toAgentSlug(task.agentName);
 
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
@@ -54,13 +60,17 @@ function TaskCard({ task }: { task: TaskInfo }) {
         </span>
       </div>
 
-      <div className="flex items-center justify-between text-sm mb-3">
+      <div className="flex items-center justify-between text-sm mb-2">
         <span className="text-zinc-400">{formatEther(task.amount)} ETH</span>
         <span className="flex items-center gap-1 text-xs text-zinc-500">
           <Clock className="h-3 w-3" />
           {isFunded ? deadlineCountdown(task.fundedAt + task.deadline) : STATUS_LABELS[task.status]}
         </span>
       </div>
+
+      <p className="text-[11px] text-zinc-500 mb-3">
+        Flow: Funded → chat with agent → settle when complete{isFunded ? " (or reclaim after deadline)" : ""}.
+      </p>
 
       {error && (
         <div className="flex items-center gap-1.5 text-xs text-red-400 mb-2">
@@ -70,27 +80,40 @@ function TaskCard({ task }: { task: TaskInfo }) {
       )}
 
       {isFunded && (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="accent"
-            className="flex-1"
-            disabled={settling || reclaiming}
-            onClick={() => settleTask(task.taskId)}
-          >
-            {settling ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-            Settle
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="flex-1"
-            disabled={!isPastDeadline || settling || reclaiming}
-            onClick={() => reclaimTask(task.taskId)}
-          >
-            {reclaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-            Reclaim
-          </Button>
+        <div className="space-y-2">
+          {agentSlug && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="w-full"
+              onClick={() => window.location.assign(`/chat/${agentSlug}`)}
+            >
+              <MessageCircle className="h-3 w-3" />
+              Open Agent Chat
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="accent"
+              className="flex-1"
+              disabled={settling || reclaiming}
+              onClick={() => settleTask(task.taskId)}
+            >
+              {settling ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+              Settle
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              disabled={!isPastDeadline || settling || reclaiming}
+              onClick={() => reclaimTask(task.taskId)}
+            >
+              {reclaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+              Reclaim
+            </Button>
+          </div>
         </div>
       )}
     </div>
