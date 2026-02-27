@@ -233,7 +233,7 @@ export function OnboardForm() {
               type="text"
               value={minimumFunding}
               onChange={(e) => setMinimumFunding(e.target.value)}
-              placeholder="e.g. 500 USDC / 0.05 ETH"
+              placeholder="e.g. 500 USDC"
               className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-zinc-700 transition-colors focus:border-emerald-500/50 focus:outline-none"
             />
           </div>

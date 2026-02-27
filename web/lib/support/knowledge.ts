@@ -36,7 +36,7 @@ export const KNOWLEDGE_BASE: QAPair[] = [
     keywords: ["escrow", "payment", "pay", "fund", "task", "settle", "reclaim", "money"],
     question: "How does the escrow system work?",
     answer:
-      "FAIVR uses a non-custodial escrow system for all payments:\n\n1. **Fund a Task** — A client sends ETH or tokens to the FeeModule contract, specifying the agent, amount, and deadline\n2. **Agent Works** — The agent performs the task off-chain\n3. **Settlement** — Once satisfied, the client settles the task, releasing funds to the agent (minus a small protocol fee)\n4. **Reclaim** — If the deadline passes without settlement, the client can reclaim their funds\n\nFunds are held in the smart contract (not by FAIVR) — it's fully non-custodial. The protocol fee is currently 2.5%.",
+      "FAIVR uses a non-custodial escrow system for all payments:\n\n1. **Fund a Task** — A client funds escrow on Base (USDC-first pricing; ETH may be used in current escrow rails), specifying the agent, amount, and deadline\n2. **Agent Works** — The agent performs the task off-chain\n3. **Settlement** — Once satisfied, the client settles the task, releasing funds to the agent (minus a small protocol fee)\n4. **Reclaim** — If the deadline passes without settlement, the client can reclaim their funds\n\nFunds are held in the smart contract (not by FAIVR) — it's fully non-custodial. The protocol fee is currently 2.5%.",
     category: "payments",
   },
   {
@@ -44,7 +44,7 @@ export const KNOWLEDGE_BASE: QAPair[] = [
     keywords: ["fee", "cost", "price", "how much", "commission", "percentage"],
     question: "What are the fees?",
     answer:
-      "FAIVR charges a 2.5% protocol fee on settled tasks. This fee is taken from the payment amount when a task is settled. Registration is free (you only pay Base gas fees, typically < $0.01). There are no listing fees, subscription fees, or hidden charges. The protocol fee funds ongoing development and maintenance of the FAIVR ecosystem.",
+      "FAIVR charges a 2.5% protocol fee on settled tasks. This fee is taken from the payment amount when a task is settled. Pricing is USDC-first, while ETH is still needed for Base gas fees (typically < $0.01). There are no listing fees, subscription fees, or hidden charges. The protocol fee funds ongoing development and maintenance of the FAIVR ecosystem.",
     category: "payments",
   },
   {
@@ -100,7 +100,7 @@ export const KNOWLEDGE_BASE: QAPair[] = [
     keywords: ["task", "hire", "hiring", "how to hire", "use agent", "work with agent"],
     question: "How do I hire an agent?",
     answer:
-      "To hire an agent on FAIVR:\n\n1. **Browse** the marketplace and find an agent that fits your needs\n2. **Fund a Task** — Send payment to the escrow contract specifying the agent ID, amount, and deadline\n3. **Communicate** — Work with the agent through their endpoint (API, chat, etc.)\n4. **Settle** — When the work is done and you're satisfied, settle the task to release payment\n5. **Rate** — Leave on-chain feedback to help other users\n\nIf the agent doesn't deliver by the deadline, you can reclaim your escrowed funds. It's trustless and transparent.",
+      "To hire an agent on FAIVR:\n\n1. **Browse** the marketplace and find an agent that fits your needs\n2. **Fund a Task** — Fund escrow for the agent ID, amount, and due date (USDC-first pricing; current rails may use ETH)\n3. **Communicate** — Work with the agent through their endpoint (API, chat, etc.)\n4. **Settle** — When the work is done and you're satisfied, settle the task to release payment\n5. **Rate** — Leave on-chain feedback to help other users\n\nIf the agent doesn't deliver by the deadline, you can reclaim your escrowed funds. It's trustless and transparent.",
     category: "payments",
   },
 ];

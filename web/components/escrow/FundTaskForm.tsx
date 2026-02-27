@@ -104,9 +104,10 @@ export function FundTaskForm({ agentId, agentName, onBack, onClose }: FundTaskFo
 
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 mb-4 space-y-1.5 text-xs">
         <div className="flex justify-between gap-4"><span className="text-zinc-500">Business model</span><span className="text-zinc-200">Task Escrow</span></div>
-        <div className="flex justify-between gap-4"><span className="text-zinc-500">Accepted token</span><span className="text-zinc-200">ETH (escrow) · USDC-first roadmap</span></div>
+        <div className="flex justify-between gap-4"><span className="text-zinc-500">Preferred token</span><span className="text-zinc-200">USDC (Base)</span></div>
+        <div className="flex justify-between gap-4"><span className="text-zinc-500">Current escrow rail</span><span className="text-zinc-200">ETH</span></div>
         <div className="flex justify-between gap-4"><span className="text-zinc-500">Minimum escrow</span><span className="text-zinc-200">{MIN_ESCROW_ETH} ETH</span></div>
-        <p className="text-zinc-500 pt-1">ETH is currently used for escrow on this flow. On Base, ETH pays gas; USDC-first funding UX is being rolled out.</p>
+        <p className="text-zinc-500 pt-1">USDC is the primary business currency. This escrow flow currently settles in ETH; ETH also covers Base gas.</p>
       </div>
 
       {!isBase && isConnected && (
