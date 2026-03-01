@@ -3,7 +3,14 @@ import { CONTRACTS, IDENTITY_ABI } from "@/lib/contracts";
 import type { AgentData } from "@/components/agent/AgentCard";
 import { useMemo } from "react";
 
-const MOCK_AGENTS: AgentData[] = [
+type MarketplaceAgent = AgentData & {
+  agentSlug?: string;
+  greeting?: string;
+  inputHint?: string;
+  pricing?: { amount: number; currency: string; per: string };
+};
+
+const MOCK_AGENTS: MarketplaceAgent[] = [
   {
     id: 1,
     name: "ShopPilot",
