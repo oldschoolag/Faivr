@@ -42,7 +42,22 @@ interface IFaivrReputationRegistry {
     function initialize(address identityRegistry_) external;
     function getIdentityRegistry() external view returns (address);
 
+    /// @notice Feedback entrypoint intended for ROUTER_ROLE callers.
+    /// @dev Uses msg.sender as client address.
     function giveFeedback(
+        uint256 agentId,
+        int128 value,
+        uint8 valueDecimals,
+        string calldata tag1,
+        string calldata tag2,
+        string calldata endpoint,
+        string calldata feedbackURI,
+        bytes32 feedbackHash
+    ) external;
+
+    /// @notice Router-authenticated feedback entrypoint preserving original client identity.
+    function giveFeedbackFor(
+        address client,
         uint256 agentId,
         int128 value,
         uint8 valueDecimals,

@@ -157,6 +157,7 @@ contract FaivrValidationRegistry is
         if (count > 0) {
             uint256 avg = total / count;
             require(avg <= type(uint8).max, "SafeCast: uint8 overflow");
+            // forge-lint: disable-next-line(unsafe-typecast) -- safe: each response <= 100, so avg <= 100
             averageResponse = uint8(avg);
         }
     }
@@ -195,6 +196,7 @@ contract FaivrValidationRegistry is
         if (count > 0) {
             uint256 avg = total / count;
             require(avg <= type(uint8).max, "SafeCast: uint8 overflow");
+            // forge-lint: disable-next-line(unsafe-typecast) -- safe: each response <= 100, so avg <= 100
             averageResponse = uint8(avg);
         }
     }

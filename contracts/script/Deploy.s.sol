@@ -36,7 +36,7 @@ contract Deploy is Script {
 
         ERC1967Proxy reputationProxy = new ERC1967Proxy(
             address(reputationImpl),
-            abi.encodeCall(FaivrReputationRegistry.initialize, (admin))
+            abi.encodeCall(FaivrReputationRegistry.initialize, (address(identityProxy)))
         );
         console.log("ReputationRegistry proxy:", address(reputationProxy));
 
@@ -68,6 +68,14 @@ contract Deploy is Script {
             ))
         );
         console.log("Router proxy:", address(routerProxy));
+
+        // ── 3. Wire router roles ─────────────────────────
+        FaivrReputationRegistry reputation = FaivrReputationRegistry(address(reputationProxy));
+        FaivrFeeModule feeModule = FaivrFeeModule(address(feeProxy));
+        FaivrRouter router = FaivrRouter(address(routerProxy));
+
+        reputation.grantRole(reputation.ROUTER_ROLE(), address(router));
+        feeModule.grantRole(feeModule.ROUTER_ROLE(), address(router));
 
         vm.stopBroadcast();
 

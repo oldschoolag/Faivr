@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const CATEGORIES = ["All", "DeFi", "Security", "Data", "Trading"] as const;
+const CATEGORIES = ["All", "E-Commerce", "Marketing", "Operations", "Finance", "Support", "DeFi", "Security", "Data"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 interface AgentSearchProps {

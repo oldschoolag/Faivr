@@ -1,12 +1,13 @@
 "use client";
 
-import { Shield, Star, X, Zap, ExternalLink } from "lucide-react";
+import { Shield, Star, X, Zap, ExternalLink, MessageCircle } from "lucide-react";
 import { VerifiedBadge } from "@/components/verification/VerifiedBadge";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { FundTaskForm } from "@/components/escrow/FundTaskForm";
+import { AgentChat } from "@/components/agent/AgentChat";
 import { useState } from "react";
+import Link from "next/link";
 
 export interface AgentData {
   id: number;
@@ -19,6 +20,10 @@ export interface AgentData {
   verified?: boolean;
   isExample?: boolean;
   isGenesis?: boolean;
+  pricing?: { amount: number; currency: string; per: string };
+  agentSlug?: string;
+  greeting?: string;
+  inputHint?: string;
 }
 
 const GRADIENT_COLORS = [
@@ -40,7 +45,7 @@ function getGradient(name: string): string {
 export function AgentCard({ agent }: { agent: AgentData }) {
   const gradient = getGradient(agent.name);
   const [showDetail, setShowDetail] = useState(false);
-  const [showFundForm, setShowFundForm] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   return (
     <>
@@ -55,11 +60,13 @@ export function AgentCard({ agent }: { agent: AgentData }) {
           </div>
 
           <div className="flex flex-col items-end gap-1.5">
-            <div className="flex items-center gap-1 text-xs">
-              <Star className="h-3 w-3 fill-emerald-500 text-emerald-500" aria-hidden="true" />
-              <span className="font-bold text-white">{agent.rating}</span>
-              <span className="text-[10px] text-zinc-500">({agent.reviews})</span>
-            </div>
+            {agent.rating > 0 && (
+              <div className="flex items-center gap-1 text-xs">
+                <Star className="h-3 w-3 fill-emerald-500 text-emerald-500" aria-hidden="true" />
+                <span className="font-bold text-white">{agent.rating}</span>
+                <span className="text-[10px] text-zinc-500">({agent.reviews})</span>
+              </div>
+            )}
             {agent.validated && (
               <div className="flex items-center gap-1">
                 <Shield className="h-3 w-3 text-emerald-500" aria-hidden="true" />
@@ -79,15 +86,20 @@ export function AgentCard({ agent }: { agent: AgentData }) {
               Genesis
             </span>
           )}
-          {agent.isExample && (
-            <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
-              Example
-            </span>
-          )}
         </h3>
         <p className="mb-5 line-clamp-2 text-sm leading-relaxed text-zinc-400">
           {agent.description}
         </p>
+
+        {/* Pricing */}
+        {agent.pricing && (
+          <div className="mb-4 flex items-center gap-2">
+            <span className="text-xs font-medium text-emerald-400">
+              {agent.pricing.amount === 0 ? "Free" : `$${(agent.pricing.amount / 100).toFixed(2)}`}
+            </span>
+            <span className="text-[10px] text-zinc-600">/ {agent.pricing.per}</span>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="mt-auto flex items-center justify-between">
@@ -96,13 +108,24 @@ export function AgentCard({ agent }: { agent: AgentData }) {
               <Badge key={tag}>{tag}</Badge>
             ))}
           </div>
-          <button
-            onClick={() => setShowDetail(true)}
-            className="text-xs font-semibold text-white transition-colors hover:text-emerald-400"
-            aria-label={`View details for ${agent.name}`}
-          >
-            View Details →
-          </button>
+          <div className="flex items-center gap-2">
+            {agent.agentSlug && (
+              <Link
+                href={`/chat/${agent.agentSlug}`}
+                className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-emerald-400"
+              >
+                <MessageCircle className="h-3 w-3" />
+                Chat Now
+              </Link>
+            )}
+            <button
+              onClick={() => setShowDetail(true)}
+              className="text-xs font-semibold text-white transition-colors hover:text-emerald-400"
+              aria-label={`View details for ${agent.name}`}
+            >
+              Details →
+            </button>
+          </div>
         </div>
       </Card>
 
@@ -110,7 +133,7 @@ export function AgentCard({ agent }: { agent: AgentData }) {
       {showDetail && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setShowDetail(false)}
+          onClick={() => { setShowDetail(false); setShowChat(false); }}
         >
           <div
             className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0b] p-6 shadow-2xl sm:p-8"
@@ -118,14 +141,22 @@ export function AgentCard({ agent }: { agent: AgentData }) {
           >
             {/* Close */}
             <button
-              onClick={() => setShowDetail(false)}
+              onClick={() => { setShowDetail(false); setShowChat(false); }}
               className="absolute right-4 top-4 rounded-lg p-1 text-zinc-500 hover:bg-white/5 hover:text-white transition-colors"
               aria-label="Close details"
             >
               <X className="h-5 w-5" />
             </button>
 
-            {!showFundForm && (
+            {showChat ? (
+              <AgentChat
+                agentId={agent.agentSlug || agent.name.toLowerCase()}
+                agentName={agent.name}
+                greeting={agent.greeting || `Hi! I'm ${agent.name}. How can I help you?`}
+                inputHint={agent.inputHint || "Describe your task..."}
+                onBack={() => setShowChat(false)}
+              />
+            ) : (
               <>
                 {/* Agent header */}
                 <div className="flex items-center gap-4 mb-6">
@@ -146,11 +177,13 @@ export function AgentCard({ agent }: { agent: AgentData }) {
                       )}
                     </h2>
                     <div className="flex items-center gap-3 mt-1">
-                      <div className="flex items-center gap-1 text-sm">
-                        <Star className="h-3.5 w-3.5 fill-emerald-500 text-emerald-500" />
-                        <span className="font-semibold text-white">{agent.rating}</span>
-                        <span className="text-xs text-zinc-500">({agent.reviews} reviews)</span>
-                      </div>
+                      {agent.rating > 0 && (
+                        <div className="flex items-center gap-1 text-sm">
+                          <Star className="h-3.5 w-3.5 fill-emerald-500 text-emerald-500" />
+                          <span className="font-semibold text-white">{agent.rating}</span>
+                          <span className="text-xs text-zinc-500">({agent.reviews} reviews)</span>
+                        </div>
+                      )}
                       {agent.validated && (
                         <div className="flex items-center gap-1">
                           <Shield className="h-3.5 w-3.5 text-emerald-500" />
@@ -180,39 +213,40 @@ export function AgentCard({ agent }: { agent: AgentData }) {
                     <span className="font-mono text-white">#{agent.id}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-500">Price</span>
+                    <span className="text-emerald-400 font-medium">
+                      {agent.pricing
+                        ? agent.pricing.amount === 0
+                          ? "Free Preview"
+                          : `$${(agent.pricing.amount / 100).toFixed(2)} / ${agent.pricing.per}`
+                        : "Free Preview"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
                     <span className="text-zinc-500">Network</span>
-                    <span className="text-white">Base Sepolia</span>
+                    <span className="text-white">Base</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-zinc-500">Standard</span>
                     <span className="text-white">ERC-8004</span>
                   </div>
                 </div>
-              </>
-            )}
 
-            {/* Actions or Fund Form */}
-            {showFundForm ? (
-              <FundTaskForm
-                agentId={agent.id}
-                agentName={agent.name}
-                onBack={() => setShowFundForm(false)}
-                onClose={() => { setShowDetail(false); setShowFundForm(false); }}
-              />
-            ) : (
-              <div className="flex gap-3">
-                <Button className="flex-1" onClick={() => setShowFundForm(true)}>
-                  <Zap className="h-4 w-4 mr-1.5" />
-                  Hire Agent
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => window.open(`https://basescan.org/address/0x8D97B74fA9bFa67Db1A8Cf315dA91390612B90F6`, "_blank")}
-                  aria-label="View on Basescan"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              </div>
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <Button className="flex-1" onClick={() => setShowChat(true)}>
+                    <MessageCircle className="h-4 w-4 mr-1.5" />
+                    Try Agent
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => window.open(`https://basescan.org/address/0x8D97B74fA9bFa67Db1A8Cf315dA91390612B90F6`, "_blank")}
+                    aria-label="View on Basescan"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
             )}
           </div>
         </div>

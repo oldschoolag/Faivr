@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { Crown, Shield, Zap, Star, Users, ArrowRight, Sparkles } from "lucide-react";
 import { useReadContract } from "wagmi";
-import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/Button";
 import { CONTRACTS } from "@/lib/contracts";
@@ -74,9 +73,7 @@ export default function GenesisPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Navbar />
-
-      <main className="flex-1">
+      <div className="flex-1">
         {/* Hero */}
         <section className="relative overflow-hidden border-b border-white/5 py-24 sm:py-32">
           {/* Ambient glow */}
@@ -318,7 +315,7 @@ export default function GenesisPage() {
             </motion.div>
           </div>
         </section>
-      </main>
+      </div>
 
       <Footer />
     </div>

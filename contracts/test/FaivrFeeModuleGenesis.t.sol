@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {FaivrFeeModule} from "../src/FaivrFeeModule.sol";
-import {IFaivrFeeModule} from "../src/interfaces/IFaivrFeeModule.sol";
 import {FaivrIdentityRegistry} from "../src/FaivrIdentityRegistry.sol";
 
 contract FaivrFeeModuleGenesisTest is Test {
@@ -90,6 +89,7 @@ contract FaivrFeeModuleGenesisTest is Test {
     function test_revert_addGenesis_capReached() public {
         for (uint256 i = 0; i < 50; i++) {
             vm.prank(admin);
+            // forge-lint: disable-next-line(unsafe-typecast) -- safe: test-only deterministic address range
             feeModule.addGenesisAgent(address(uint160(1000 + i)));
         }
         vm.prank(admin);

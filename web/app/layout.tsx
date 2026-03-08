@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "./providers";
+import { Navbar } from "@/components/layout/Navbar";
 import SupportChat from "@/components/support/SupportChat";
 
 const inter = Inter({
@@ -52,7 +53,8 @@ export default function RootLayout({
           Skip to content
         </a>
         <Providers>
-          {children}
+          <Navbar />
+          <main id="main-content">{children}</main>
           <SupportChat />
           <Analytics />
           <SpeedInsights />

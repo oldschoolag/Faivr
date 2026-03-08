@@ -31,9 +31,10 @@ contract FaivrVerificationRegistry is
     uint256 private _nextTokenId;
 
     mapping(uint256 agentId => Verification) private _verifications;
+    mapping(uint256 tokenId => uint256 agentId) private _tokenToAgentId;
 
     /// @custom:storage-gap
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -74,6 +75,15 @@ contract FaivrVerificationRegistry is
             // First verification — mint soulbound NFT
             tokenId = _nextTokenId++;
             _mint(agentOwner, tokenId);
+            _tokenToAgentId[tokenId] = agentId;
+        } else {
+            // Keep NFT ownership aligned with the current agent owner
+            address currentTokenOwner = ownerOf(tokenId);
+            if (currentTokenOwner != agentOwner) {
+                _burn(tokenId);
+                _mint(agentOwner, tokenId);
+            }
+            _tokenToAgentId[tokenId] = agentId;
         }
 
         v.domain = domain;
@@ -135,40 +145,33 @@ contract FaivrVerificationRegistry is
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
 
-        // Find the agentId for this tokenId (linear scan, fine for reasonable scale)
-        uint256 agentId;
-        string memory domain;
-        string memory method;
-        uint256 verifiedAt;
-        bool found;
+        uint256 agentId = _tokenToAgentId[tokenId];
+        require(agentId != 0, "Token not linked");
 
-        // We need to search — store a reverse mapping would be gas-optimal but
-        // tokenURI is view-only so linear scan is acceptable
-        for (uint256 i = 1; i < _nextTokenId + 100; i++) {
-            Verification storage v = _verifications[i];
-            if (v.tokenId == tokenId) {
-                agentId = i;
-                domain = v.domain;
-                method = _methodToString(v.method);
-                verifiedAt = v.verifiedAt;
-                found = true;
-                break;
-            }
-        }
+        Verification storage v = _verifications[agentId];
+        string memory domain = v.domain;
+        string memory method = _methodToString(v.method);
+        uint256 verifiedAt = v.verifiedAt;
 
-        require(found, "Token not linked");
+        bool ownerAligned = ownerOf(tokenId) == identityRegistry.ownerOf(agentId);
+        bool active = v.verified && block.timestamp <= v.expiresAt && ownerAligned;
+        string memory status = active ? "active" : "inactive";
 
-        string memory svg = _generateSVG(agentId, domain, method);
+        string memory svg = _generateSVG(agentId, domain, method, status);
         string memory json = string(abi.encodePacked(
-            '{"name":"FAIVR Verified Agent #', agentId.toString(),
-            '","description":"Soulbound verification proof for agent #', agentId.toString(),
-            ' on FAIVR. Domain: ', domain, ' | Method: ', method, '",',
+            '{"name":"FAIVR Verification #', agentId.toString(),
+            '","description":"Soulbound verification record for agent #', agentId.toString(),
+            ' on FAIVR. Domain: ', domain, ' | Method: ', method, ' | Status: ', status, '",',
             '"image":"data:image/svg+xml;base64,', Base64.encode(bytes(svg)), '",',
             '"attributes":[',
                 '{"trait_type":"Agent ID","value":"', agentId.toString(), '"},',
                 '{"trait_type":"Domain","value":"', domain, '"},',
                 '{"trait_type":"Method","value":"', method, '"},',
+                '{"trait_type":"Status","value":"', status, '"},',
+                '{"trait_type":"Verified Flag","value":"', v.verified ? "true" : "false", '"},',
+                '{"trait_type":"Owner Aligned","value":"', ownerAligned ? "true" : "false", '"},',
                 '{"trait_type":"Verified At","display_type":"date","value":', verifiedAt.toString(), '},',
+                '{"trait_type":"Expires At","display_type":"date","value":', v.expiresAt.toString(), '},',
                 '{"trait_type":"Soulbound","value":"true"}',
             ']}'
         ));
@@ -182,7 +185,7 @@ contract FaivrVerificationRegistry is
         return "twitter";
     }
 
-    function _generateSVG(uint256 agentId, string memory domain, string memory method)
+    function _generateSVG(uint256 agentId, string memory domain, string memory method, string memory status)
         internal
         pure
         returns (string memory)
@@ -196,10 +199,11 @@ contract FaivrVerificationRegistry is
             '<rect width="400" height="400" rx="20" fill="url(#bg)"/>',
             '<rect x="20" y="20" width="360" height="360" rx="12" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.5"/>',
             '<text x="200" y="100" text-anchor="middle" fill="#10b981" font-family="monospace" font-size="48">&#x2713;</text>',
-            '<text x="200" y="150" text-anchor="middle" fill="white" font-family="sans-serif" font-size="20" font-weight="bold">FAIVR VERIFIED</text>',
-            '<text x="200" y="200" text-anchor="middle" fill="#a1a1aa" font-family="monospace" font-size="14">Agent #', agentId.toString(), '</text>',
-            '<text x="200" y="240" text-anchor="middle" fill="#d4d4d8" font-family="monospace" font-size="12">', domain, '</text>',
-            '<text x="200" y="270" text-anchor="middle" fill="#71717a" font-family="monospace" font-size="11">method: ', method, '</text>',
+            '<text x="200" y="150" text-anchor="middle" fill="white" font-family="sans-serif" font-size="20" font-weight="bold">FAIVR VERIFICATION</text>',
+            '<text x="200" y="180" text-anchor="middle" fill="#f59e0b" font-family="monospace" font-size="12">status: ', status, '</text>',
+            '<text x="200" y="210" text-anchor="middle" fill="#a1a1aa" font-family="monospace" font-size="14">Agent #', agentId.toString(), '</text>',
+            '<text x="200" y="250" text-anchor="middle" fill="#d4d4d8" font-family="monospace" font-size="12">', domain, '</text>',
+            '<text x="200" y="280" text-anchor="middle" fill="#71717a" font-family="monospace" font-size="11">method: ', method, '</text>',
             '<text x="200" y="360" text-anchor="middle" fill="#3f3f46" font-family="sans-serif" font-size="10">SOULBOUND \xE2\x80\xA2 NON-TRANSFERABLE</text>',
             '</svg>'
         ));

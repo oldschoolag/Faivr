@@ -16,6 +16,8 @@ contract FaivrReputationRegistry is
     AccessControlUpgradeable,
     IFaivrReputationRegistry
 {
+    // ── Roles ────────────────────────────────────────────
+    bytes32 public constant ROUTER_ROLE = keccak256("ROUTER_ROLE");
     // ── Structs (internal storage) ───────────────────────
     struct FeedbackEntry {
         int128 value;
@@ -58,6 +60,7 @@ contract FaivrReputationRegistry is
         __AccessControl_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ROUTER_ROLE, msg.sender);
         _identityRegistry = identityRegistry_;
     }
 
@@ -78,37 +81,22 @@ contract FaivrReputationRegistry is
         string calldata endpoint,
         string calldata feedbackURI,
         bytes32 feedbackHash
-    ) external override {
-        if (valueDecimals > 18) revert InvalidValueDecimals(valueDecimals);
+    ) external override onlyRole(ROUTER_ROLE) {
+        _submitFeedback(msg.sender, agentId, value, valueDecimals, tag1, tag2, endpoint, feedbackURI, feedbackHash);
+    }
 
-        // Verify agent exists
-        _requireAgentExists(agentId);
-
-        // Submitter must not be agent owner or approved operator
-        address agentOwner = IERC721(_identityRegistry).ownerOf(agentId);
-        if (msg.sender == agentOwner) revert SelfFeedbackNotAllowed();
-        if (IERC721(_identityRegistry).isApprovedForAll(agentOwner, msg.sender)) revert SelfFeedbackNotAllowed();
-        if (IERC721(_identityRegistry).getApproved(agentId) == msg.sender) revert SelfFeedbackNotAllowed();
-
-        // Track client
-        if (!_isClient[agentId][msg.sender]) {
-            _clients[agentId].push(msg.sender);
-            _isClient[agentId][msg.sender] = true;
-        }
-
-        // Increment feedback index (1-based)
-        uint64 feedbackIndex = _lastIndex[agentId][msg.sender] + 1;
-        _lastIndex[agentId][msg.sender] = feedbackIndex;
-
-        _feedback[agentId][msg.sender][feedbackIndex] = FeedbackEntry({
-            value: value,
-            valueDecimals: valueDecimals,
-            tag1: tag1,
-            tag2: tag2,
-            isRevoked: false
-        });
-
-        emit NewFeedback(agentId, msg.sender, feedbackIndex, value, valueDecimals, tag1, tag1, tag2, endpoint, feedbackURI, feedbackHash);
+    function giveFeedbackFor(
+        address client,
+        uint256 agentId,
+        int128 value,
+        uint8 valueDecimals,
+        string calldata tag1,
+        string calldata tag2,
+        string calldata endpoint,
+        string calldata feedbackURI,
+        bytes32 feedbackHash
+    ) external override onlyRole(ROUTER_ROLE) {
+        _submitFeedback(client, agentId, value, valueDecimals, tag1, tag2, endpoint, feedbackURI, feedbackHash);
     }
 
     function revokeFeedback(uint256 agentId, uint64 feedbackIndex) external override {
@@ -168,16 +156,17 @@ contract FaivrReputationRegistry is
                 if (entry.isRevoked) continue;
                 if (tag1Hash != bytes32(0) && keccak256(bytes(entry.tag1)) != tag1Hash) continue;
                 if (tag2Hash != bytes32(0) && keccak256(bytes(entry.tag2)) != tag2Hash) continue;
-                total += int256(entry.value);
+                total += _normalizeTo18(entry.value, entry.valueDecimals);
                 count++;
             }
         }
         if (count > 0) {
             int256 avg = total / int256(uint256(count));
             require(avg >= type(int128).min && avg <= type(int128).max, "SafeCast: int128 overflow");
+            // forge-lint: disable-next-line(unsafe-typecast) -- safe: bounds checked against int128 min/max above
             summaryValue = int128(avg);
         }
-        summaryValueDecimals = 0; // average inherits decimals from input values
+        summaryValueDecimals = 18;
     }
 
     function readFeedback(
@@ -291,7 +280,7 @@ contract FaivrReputationRegistry is
                 if (p.tag1Hash != bytes32(0) && keccak256(bytes(entry.tag1)) != p.tag1Hash) continue;
                 if (p.tag2Hash != bytes32(0) && keccak256(bytes(entry.tag2)) != p.tag2Hash) continue;
                 if (seen >= p.offset) {
-                    total += int256(entry.value);
+                    total += _normalizeTo18(entry.value, entry.valueDecimals);
                     count++;
                     collected++;
                 }
@@ -301,9 +290,10 @@ contract FaivrReputationRegistry is
         if (count > 0) {
             int256 avg = total / int256(uint256(count));
             require(avg >= type(int128).min && avg <= type(int128).max, "SafeCast: int128 overflow");
+            // forge-lint: disable-next-line(unsafe-typecast) -- safe: bounds checked against int128 min/max above
             summaryValue = int128(avg);
         }
-        summaryValueDecimals = 0;
+        summaryValueDecimals = 18;
     }
 
     /// @dev Parameters for paginated feedback reading (avoids stack-too-deep)
@@ -444,6 +434,57 @@ contract FaivrReputationRegistry is
     }
 
     // ── Internal ─────────────────────────────────────────
+
+    function _submitFeedback(
+        address client,
+        uint256 agentId,
+        int128 value,
+        uint8 valueDecimals,
+        string calldata tag1,
+        string calldata tag2,
+        string calldata endpoint,
+        string calldata feedbackURI,
+        bytes32 feedbackHash
+    ) internal {
+        if (client == address(0)) revert ZeroAddress();
+        if (valueDecimals > 18) revert InvalidValueDecimals(valueDecimals);
+
+        // Verify agent exists
+        _requireAgentExists(agentId);
+
+        // Submitter must not be agent owner or approved operator
+        address agentOwner = IERC721(_identityRegistry).ownerOf(agentId);
+        if (client == agentOwner) revert SelfFeedbackNotAllowed();
+        if (IERC721(_identityRegistry).isApprovedForAll(agentOwner, client)) revert SelfFeedbackNotAllowed();
+        if (IERC721(_identityRegistry).getApproved(agentId) == client) revert SelfFeedbackNotAllowed();
+
+        // Track client
+        if (!_isClient[agentId][client]) {
+            _clients[agentId].push(client);
+            _isClient[agentId][client] = true;
+        }
+
+        // Increment feedback index (1-based)
+        uint64 feedbackIndex = _lastIndex[agentId][client] + 1;
+        _lastIndex[agentId][client] = feedbackIndex;
+
+        _feedback[agentId][client][feedbackIndex] = FeedbackEntry({
+            value: value,
+            valueDecimals: valueDecimals,
+            tag1: tag1,
+            tag2: tag2,
+            isRevoked: false
+        });
+
+        emit NewFeedback(agentId, client, feedbackIndex, value, valueDecimals, tag1, tag1, tag2, endpoint, feedbackURI, feedbackHash);
+    }
+
+    function _normalizeTo18(int128 value, uint8 valueDecimals) internal pure returns (int256) {
+        if (valueDecimals == 18) return int256(value);
+        uint256 factor = 10 ** uint256(18 - valueDecimals);
+        // forge-lint: disable-next-line(unsafe-typecast) -- safe: factor <= 1e18 always fits in int256
+        return int256(value) * int256(factor);
+    }
 
     function _requireAgentExists(uint256 agentId) internal view {
         // Check if agent exists by calling ownerOf — will revert if not minted

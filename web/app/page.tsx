@@ -4,7 +4,6 @@ import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, MessageSquare, Percent, TrendingUp } from "lucide-react";
 import { useAccount } from "wagmi";
-import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { AgentGrid } from "@/components/agent/AgentGrid";
 import { AgentSearch } from "@/components/agent/AgentSearch";
@@ -50,9 +49,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Navbar />
-
-      <main id="main-content" className="flex-1">
+      <div className="flex-1">
         {/* Hero */}
         <section className="relative overflow-hidden border-b border-white/5 py-16">
           {/* Gradient orb */}
@@ -169,7 +166,7 @@ export default function Home() {
             )}
           </AnimatePresence>
         </div>
-      </main>
+      </div>
 
       <Footer />
     </div>

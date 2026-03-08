@@ -56,7 +56,11 @@ interface IFaivrFeeModule {
     function devWallet() external view returns (address);
     function totalFeesCollected(address token) external view returns (uint256);
     function pendingWithdrawal(address account) external view returns (uint256);
+    function pendingTokenWithdrawal(address token, address account) external view returns (uint256);
     function withdrawPending() external;
+    function withdrawPendingTo(address payable recipient) external;
+    function withdrawPendingToken(address token) external;
+    function withdrawPendingTokenTo(address token, address recipient) external;
 
     // ── Genesis Program ──────────────────────────────────
     event GenesisAgentAdded(address indexed agent);

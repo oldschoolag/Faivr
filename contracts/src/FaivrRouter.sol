@@ -18,14 +18,19 @@ contract FaivrRouter is
     AccessControlUpgradeable,
     IFaivrRouter
 {
+    error TaskAgentMismatch(uint256 taskId, uint256 expectedAgentId, uint256 providedAgentId);
+    error FeedbackAlreadyGiven(uint256 taskId);
     // ── Storage ──────────────────────────────────────────
     IFaivrIdentityRegistry public identityRegistry;
     IFaivrReputationRegistry public reputationRegistry;
     address public validationRegistry;
     IFaivrFeeModule public feeModule;
 
+    /// @dev one-feedback-per-task guard
+    mapping(uint256 => bool) public feedbackGivenForTask;
+
     /// @custom:storage-gap
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -80,8 +85,15 @@ contract FaivrRouter is
         string calldata tag1,
         string calldata tag2
     ) external override {
+        if (feedbackGivenForTask[taskId]) revert FeedbackAlreadyGiven(taskId);
+
+        IFaivrFeeModule.Task memory task = feeModule.getTask(taskId);
+        if (task.agentId != agentId) revert TaskAgentMismatch(taskId, task.agentId, agentId);
+
         feeModule.settleTaskFor(taskId, msg.sender);
-        reputationRegistry.giveFeedback(agentId, value, valueDecimals, tag1, tag2, "", "", bytes32(0));
+
+        reputationRegistry.giveFeedbackFor(msg.sender, agentId, value, valueDecimals, tag1, tag2, "", "", bytes32(0));
+        feedbackGivenForTask[taskId] = true;
     }
 
     // ── Views ────────────────────────────────────────────

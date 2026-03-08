@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {FaivrIdentityRegistry} from "../src/FaivrIdentityRegistry.sol";
 import {FaivrReputationRegistry} from "../src/FaivrReputationRegistry.sol";
@@ -40,6 +40,14 @@ contract FaivrReputationRegistryTest is Test {
             abi.encodeCall(FaivrReputationRegistry.initialize, (address(identity)))
         );
         reputation = FaivrReputationRegistry(address(repProxy));
+
+        // Give router privileges to test actors that call giveFeedback directly.
+        bytes32 routerRole = reputation.ROUTER_ROLE();
+        vm.startPrank(admin);
+        reputation.grantRole(routerRole, client1);
+        reputation.grantRole(routerRole, client2);
+        reputation.grantRole(routerRole, agentOwner);
+        vm.stopPrank();
     }
 
     // ── initialize ───────────────────────────────────────
@@ -163,9 +171,10 @@ contract FaivrReputationRegistryTest is Test {
         clients[0] = client1;
         clients[1] = client2;
 
-        (uint64 count, int128 summaryValue,) = reputation.getSummary(agentId, clients, "", "");
+        (uint64 count, int128 summaryValue, uint8 summaryDecimals) = reputation.getSummary(agentId, clients, "", "");
         assertEq(count, 2);
-        assertEq(summaryValue, 85); // (80+90)/2
+        assertEq(summaryValue, 85e18); // (80+90)/2 normalized to 18 decimals
+        assertEq(summaryDecimals, 18);
     }
 
     function test_getSummary_withTagFilter() public {
@@ -177,9 +186,10 @@ contract FaivrReputationRegistryTest is Test {
         address[] memory clients = new address[](1);
         clients[0] = client1;
 
-        (uint64 count, int128 summaryValue,) = reputation.getSummary(agentId, clients, "starred", "");
+        (uint64 count, int128 summaryValue, uint8 summaryDecimals) = reputation.getSummary(agentId, clients, "starred", "");
         assertEq(count, 1);
-        assertEq(summaryValue, 80);
+        assertEq(summaryValue, 80e18);
+        assertEq(summaryDecimals, 18);
     }
 
     function test_revert_getSummary_emptyClients() public {
