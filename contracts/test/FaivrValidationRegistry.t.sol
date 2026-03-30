@@ -34,10 +34,9 @@ contract FaivrValidationRegistryTest is Test {
 
         // Deploy validation
         FaivrValidationRegistry valImpl = new FaivrValidationRegistry();
-        vm.prank(admin);
         ERC1967Proxy valProxy = new ERC1967Proxy(
             address(valImpl),
-            abi.encodeCall(FaivrValidationRegistry.initialize, (address(identity)))
+            abi.encodeCall(FaivrValidationRegistry.initialize, (admin, address(identity)))
         );
         validation = FaivrValidationRegistry(address(valProxy));
     }

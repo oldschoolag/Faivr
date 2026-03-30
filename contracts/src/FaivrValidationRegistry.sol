@@ -51,13 +51,14 @@ contract FaivrValidationRegistry is
         _disableInitializers();
     }
 
-    function initialize(address identityRegistry_) external override initializer {
+    function initialize(address admin, address identityRegistry_) external override initializer {
+        if (admin == address(0)) revert ZeroAddress();
         if (identityRegistry_ == address(0)) revert ZeroAddress();
 
         __UUPSUpgradeable_init();
         __AccessControl_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _identityRegistry = identityRegistry_;
     }
 

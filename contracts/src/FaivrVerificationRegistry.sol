@@ -11,6 +11,10 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {IFaivrVerificationRegistry} from "./interfaces/IFaivrVerificationRegistry.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+interface IFaivrVerificationIdentityRegistry is IERC721 {
+    function agentCount() external view returns (uint256);
+}
+
 /// @title FaivrVerificationRegistry
 /// @notice Soulbound verification NFTs for FAIVR agents — proves domain/Twitter ownership
 contract FaivrVerificationRegistry is
@@ -26,14 +30,15 @@ contract FaivrVerificationRegistry is
     bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
 
     // ── Storage ──────────────────────────────────────────
-    IERC721 public identityRegistry;
+    IFaivrVerificationIdentityRegistry public identityRegistry;
     uint256 public expiryPeriod; // seconds, default 90 days
     uint256 private _nextTokenId;
 
     mapping(uint256 agentId => Verification) private _verifications;
+    mapping(uint256 tokenId => uint256 agentId) private _tokenAgents;
 
     /// @custom:storage-gap
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -49,7 +54,7 @@ contract FaivrVerificationRegistry is
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(VERIFIER_ROLE, admin);
 
-        identityRegistry = IERC721(identityAddr);
+        identityRegistry = IFaivrVerificationIdentityRegistry(identityAddr);
         expiryPeriod = 90 days;
         _nextTokenId = 1;
     }
@@ -62,19 +67,9 @@ contract FaivrVerificationRegistry is
         string calldata domain,
         VerificationMethod method
     ) external onlyRole(VERIFIER_ROLE) {
-        // Check agent exists in identity registry
-        address agentOwner = identityRegistry.ownerOf(agentId);
-        // ownerOf reverts for nonexistent tokens, but be explicit
-        if (agentOwner == address(0)) revert AgentDoesNotExist(agentId);
-
+        address agentOwner = _agentOwner(agentId);
         Verification storage v = _verifications[agentId];
-
-        uint256 tokenId = v.tokenId;
-        if (tokenId == 0) {
-            // First verification — mint soulbound NFT
-            tokenId = _nextTokenId++;
-            _mint(agentOwner, tokenId);
-        }
+        uint256 tokenId = _syncVerification(agentId, agentOwner, v.tokenId);
 
         v.domain = domain;
         v.method = method;
@@ -97,15 +92,29 @@ contract FaivrVerificationRegistry is
         emit VerificationRevoked(agentId);
     }
 
-    /// @notice Check if an agent is currently verified (not expired).
+    /// @notice Sync a verification NFT to the current agent owner and backfill reverse token lookup.
+    function syncVerification(uint256 agentId) external returns (uint256 tokenId) {
+        Verification storage v = _verifications[agentId];
+        if (v.tokenId == 0) revert VerificationNotFound(agentId);
+
+        address agentOwner = _agentOwner(agentId);
+        tokenId = _syncVerification(agentId, agentOwner, v.tokenId);
+        v.tokenId = tokenId;
+    }
+
+    /// @notice Check if an agent is currently verified (not expired and still bound to the current owner).
     function isVerified(uint256 agentId) external view returns (bool) {
         Verification storage v = _verifications[agentId];
-        return v.verified && block.timestamp <= v.expiresAt;
+        return v.verified && block.timestamp <= v.expiresAt && _verificationBoundToCurrentOwner(agentId, v.tokenId);
     }
 
     /// @notice Get full verification record.
-    function getVerification(uint256 agentId) external view returns (Verification memory) {
-        return _verifications[agentId];
+    function getVerification(uint256 agentId) external view returns (Verification memory verification) {
+        verification = _verifications[agentId];
+        if (verification.verified && !_verificationBoundToCurrentOwner(agentId, verification.tokenId)) {
+            verification.verified = false;
+            verification.expiresAt = 0;
+        }
     }
 
     /// @notice Update the expiry period (admin only).
@@ -135,28 +144,16 @@ contract FaivrVerificationRegistry is
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
 
-        // Find the agentId for this tokenId (linear scan, fine for reasonable scale)
-        uint256 agentId;
-        string memory domain;
-        string memory method;
-        uint256 verifiedAt;
-        bool found;
-
-        // We need to search — store a reverse mapping would be gas-optimal but
-        // tokenURI is view-only so linear scan is acceptable
-        for (uint256 i = 1; i < _nextTokenId + 100; i++) {
-            Verification storage v = _verifications[i];
-            if (v.tokenId == tokenId) {
-                agentId = i;
-                domain = v.domain;
-                method = _methodToString(v.method);
-                verifiedAt = v.verifiedAt;
-                found = true;
-                break;
-            }
+        uint256 agentId = _tokenAgents[tokenId];
+        if (agentId == 0) {
+            agentId = _findAgentIdByTokenId(tokenId);
         }
+        require(agentId != 0, "Token not linked");
 
-        require(found, "Token not linked");
+        Verification storage v = _verifications[agentId];
+        string memory domain = v.domain;
+        string memory method = _methodToString(v.method);
+        uint256 verifiedAt = v.verifiedAt;
 
         string memory svg = _generateSVG(agentId, domain, method);
         string memory json = string(abi.encodePacked(
@@ -203,6 +200,58 @@ contract FaivrVerificationRegistry is
             '<text x="200" y="360" text-anchor="middle" fill="#3f3f46" font-family="sans-serif" font-size="10">SOULBOUND \xE2\x80\xA2 NON-TRANSFERABLE</text>',
             '</svg>'
         ));
+    }
+
+    function _agentOwner(uint256 agentId) internal view returns (address owner) {
+        owner = identityRegistry.ownerOf(agentId);
+        if (owner == address(0)) revert AgentDoesNotExist(agentId);
+    }
+
+    function _syncVerification(uint256 agentId, address agentOwner, uint256 currentTokenId) internal returns (uint256 tokenId) {
+        tokenId = currentTokenId;
+
+        if (tokenId == 0) {
+            tokenId = _nextTokenId++;
+            _mint(agentOwner, tokenId);
+        } else {
+            address tokenOwner = _ownerOf(tokenId);
+            if (tokenOwner == address(0) || tokenOwner != agentOwner) {
+                if (tokenOwner != address(0)) {
+                    _burn(tokenId);
+                    _tokenAgents[tokenId] = 0;
+                }
+                tokenId = _nextTokenId++;
+                _mint(agentOwner, tokenId);
+            }
+        }
+
+        _tokenAgents[tokenId] = agentId;
+    }
+
+    function _verificationBoundToCurrentOwner(uint256 agentId, uint256 tokenId) internal view returns (bool) {
+        if (tokenId == 0) {
+            return false;
+        }
+
+        address tokenOwner = _ownerOf(tokenId);
+        if (tokenOwner == address(0)) {
+            return false;
+        }
+
+        try identityRegistry.ownerOf(agentId) returns (address agentOwner) {
+            return tokenOwner == agentOwner;
+        } catch {
+            return false;
+        }
+    }
+
+    function _findAgentIdByTokenId(uint256 tokenId) internal view returns (uint256 agentId) {
+        uint256 totalAgents = identityRegistry.agentCount();
+        for (uint256 i = 1; i <= totalAgents; i++) {
+            if (_verifications[i].tokenId == tokenId) {
+                return i;
+            }
+        }
     }
 
     // ── Required Overrides ───────────────────────────────

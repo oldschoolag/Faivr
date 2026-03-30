@@ -30,7 +30,7 @@ interface IFaivrValidationRegistry {
     error ZeroAddress();
 
     // ── Core ─────────────────────────────────────────────
-    function initialize(address identityRegistry_) external;
+    function initialize(address admin, address identityRegistry_) external;
     function getIdentityRegistry() external view returns (address);
 
     function validationRequest(

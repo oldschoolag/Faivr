@@ -5,6 +5,7 @@ pragma solidity ^0.8.24;
 /// @notice Orchestrator for common multi-contract flows
 interface IFaivrRouter {
     error ZeroAddress();
+    error InvalidTaskAgent(uint256 taskId, uint256 providedAgentId, uint256 actualAgentId);
 
     function registerAndFund(
         string calldata agentURI, address token, uint256 amount, uint256 deadline

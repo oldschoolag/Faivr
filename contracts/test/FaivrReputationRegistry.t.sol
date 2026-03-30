@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {FaivrIdentityRegistry} from "../src/FaivrIdentityRegistry.sol";
 import {FaivrReputationRegistry} from "../src/FaivrReputationRegistry.sol";
@@ -12,12 +12,14 @@ contract FaivrReputationRegistryTest is Test {
     FaivrReputationRegistry public reputation;
 
     address public admin = makeAddr("admin");
+    address public settlementSource = makeAddr("settlementSource");
     address public agentOwner = makeAddr("agentOwner");
     address public client1 = makeAddr("client1");
     address public client2 = makeAddr("client2");
     address public responder = makeAddr("responder");
 
     uint256 public agentId;
+    uint256 internal nextTaskId = 1;
 
     function setUp() public {
         // Deploy identity
@@ -34,12 +36,21 @@ contract FaivrReputationRegistryTest is Test {
 
         // Deploy reputation
         FaivrReputationRegistry repImpl = new FaivrReputationRegistry();
-        vm.prank(admin);
         ERC1967Proxy repProxy = new ERC1967Proxy(
             address(repImpl),
-            abi.encodeCall(FaivrReputationRegistry.initialize, (address(identity)))
+            abi.encodeCall(FaivrReputationRegistry.initialize, (admin, address(identity)))
         );
         reputation = FaivrReputationRegistry(address(repProxy));
+
+        vm.startPrank(admin);
+        reputation.grantRole(reputation.SETTLEMENT_SOURCE_ROLE(), settlementSource);
+        vm.stopPrank();
+    }
+
+    function _recordSettlement(address client) internal returns (uint256 taskId) {
+        taskId = nextTaskId++;
+        vm.prank(settlementSource);
+        reputation.recordTaskSettlement(taskId, agentId, client);
     }
 
     // ── initialize ───────────────────────────────────────
@@ -51,6 +62,8 @@ contract FaivrReputationRegistryTest is Test {
     // ── giveFeedback ─────────────────────────────────────
 
     function test_giveFeedback() public {
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 87, 0, "starred", "", "", "", bytes32(0));
 
@@ -61,9 +74,13 @@ contract FaivrReputationRegistryTest is Test {
         assertEq(tag1, "starred");
         assertEq(tag2, "");
         assertFalse(isRevoked);
+        assertEq(reputation.pendingFeedbackCredits(agentId, client1), 0);
     }
 
     function test_giveFeedback_multipleFeedbackSameClient() public {
+        _recordSettlement(client1);
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "starred", "", "", "", bytes32(0));
         vm.prank(client1);
@@ -77,19 +94,31 @@ contract FaivrReputationRegistryTest is Test {
         assertEq(v2, 90);
     }
 
+    function test_revert_giveFeedback_withoutSettledTaskProof() public {
+        vm.prank(client1);
+        vm.expectRevert(abi.encodeWithSelector(IFaivrReputationRegistry.FeedbackNotAuthorized.selector, agentId, client1));
+        reputation.giveFeedback(agentId, 87, 0, "starred", "", "", "", bytes32(0));
+    }
+
     function test_revert_giveFeedback_selfFeedback() public {
+        _recordSettlement(agentOwner);
+
         vm.prank(agentOwner);
         vm.expectRevert(IFaivrReputationRegistry.SelfFeedbackNotAllowed.selector);
         reputation.giveFeedback(agentId, 100, 0, "", "", "", "", bytes32(0));
     }
 
     function test_revert_giveFeedback_invalidDecimals() public {
+        _recordSettlement(client1);
+
         vm.prank(client1);
         vm.expectRevert(abi.encodeWithSelector(IFaivrReputationRegistry.InvalidValueDecimals.selector, 19));
         reputation.giveFeedback(agentId, 100, 19, "", "", "", "", bytes32(0));
     }
 
     function test_giveFeedback_negativeValue() public {
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, -32, 1, "tradingYield", "month", "", "", bytes32(0));
 
@@ -101,9 +130,19 @@ contract FaivrReputationRegistryTest is Test {
         assertEq(tag2, "month");
     }
 
+    function test_recordTaskSettlement_cannotDoubleRecordTask() public {
+        uint256 taskId = _recordSettlement(client1);
+
+        vm.prank(settlementSource);
+        vm.expectRevert(abi.encodeWithSelector(IFaivrReputationRegistry.TaskSettlementAlreadyRecorded.selector, taskId));
+        reputation.recordTaskSettlement(taskId, agentId, client1);
+    }
+
     // ── revokeFeedback ───────────────────────────────────
 
     function test_revokeFeedback() public {
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 87, 0, "", "", "", "", bytes32(0));
 
@@ -121,6 +160,8 @@ contract FaivrReputationRegistryTest is Test {
     }
 
     function test_revert_revokeFeedback_alreadyRevoked() public {
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 87, 0, "", "", "", "", bytes32(0));
         vm.prank(client1);
@@ -133,6 +174,8 @@ contract FaivrReputationRegistryTest is Test {
     // ── appendResponse ───────────────────────────────────
 
     function test_appendResponse() public {
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 87, 0, "", "", "", "", bytes32(0));
 
@@ -154,6 +197,9 @@ contract FaivrReputationRegistryTest is Test {
     // ── getSummary ───────────────────────────────────────
 
     function test_getSummary() public {
+        _recordSettlement(client1);
+        _recordSettlement(client2);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "starred", "", "", "", bytes32(0));
         vm.prank(client2);
@@ -169,6 +215,9 @@ contract FaivrReputationRegistryTest is Test {
     }
 
     function test_getSummary_withTagFilter() public {
+        _recordSettlement(client1);
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "starred", "", "", "", bytes32(0));
         vm.prank(client1);
@@ -189,6 +238,8 @@ contract FaivrReputationRegistryTest is Test {
     }
 
     function test_getSummary_excludesRevoked() public {
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 100, 0, "", "", "", "", bytes32(0));
         vm.prank(client1);
@@ -204,6 +255,9 @@ contract FaivrReputationRegistryTest is Test {
     // ── readAllFeedback ──────────────────────────────────
 
     function test_readAllFeedback() public {
+        _recordSettlement(client1);
+        _recordSettlement(client2);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "starred", "", "", "", bytes32(0));
         vm.prank(client2);
@@ -229,6 +283,8 @@ contract FaivrReputationRegistryTest is Test {
     }
 
     function test_readAllFeedback_excludesRevokedByDefault() public {
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "", "", "", "", bytes32(0));
         vm.prank(client1);
@@ -243,6 +299,8 @@ contract FaivrReputationRegistryTest is Test {
     }
 
     function test_readAllFeedback_includesRevokedWhenRequested() public {
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "", "", "", "", bytes32(0));
         vm.prank(client1);
@@ -259,6 +317,9 @@ contract FaivrReputationRegistryTest is Test {
     // ── getClients / getLastIndex ────────────────────────
 
     function test_getClients() public {
+        _recordSettlement(client1);
+        _recordSettlement(client2);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "", "", "", "", bytes32(0));
         vm.prank(client2);
@@ -271,6 +332,9 @@ contract FaivrReputationRegistryTest is Test {
     }
 
     function test_getLastIndex() public {
+        _recordSettlement(client1);
+        _recordSettlement(client1);
+
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "", "", "", "", bytes32(0));
         vm.prank(client1);

@@ -4,7 +4,13 @@ pragma solidity ^0.8.24;
 import {Test, console} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {FaivrFeeModule} from "../src/FaivrFeeModule.sol";
+import {FaivrReputationRegistry} from "../src/FaivrReputationRegistry.sol";
 import {IFaivrFeeModule} from "../src/interfaces/IFaivrFeeModule.sol";
 import {FaivrIdentityRegistry} from "../src/FaivrIdentityRegistry.sol";
 
@@ -16,8 +22,94 @@ contract MockUSDC is ERC20 {
     }
 }
 
+contract FaivrFeeModuleLegacy is Initializable, UUPSUpgradeable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable {
+    bytes32 public constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant ROUTER_ROLE = keccak256("ROUTER_ROLE");
+
+    uint256 public constant MAX_FEE_BPS = 1000;
+
+    uint256 private _nextTaskId;
+    uint256 private _feeBps;
+    address private _protocolWallet;
+    address private _devWallet;
+    address public identityRegistry;
+    mapping(uint256 taskId => IFaivrFeeModule.Task) private _tasks;
+    mapping(address token => uint256) private _totalFees;
+    mapping(address => uint256) private _pendingWithdrawals;
+    uint256 private _maxEscrowAmount;
+    mapping(address => bool) private _genesisAgents;
+    mapping(address => uint8) private _genesisTasksUsed;
+    uint256 private _genesisAgentCount;
+    uint256[46] private __gap;
+
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        address admin,
+        address protocolWallet_,
+        address devWallet_,
+        address identityRegistry_
+    ) external initializer {
+        __UUPSUpgradeable_init();
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(FEE_MANAGER_ROLE, admin);
+        _grantRole(PAUSER_ROLE, admin);
+
+        _protocolWallet = protocolWallet_;
+        _devWallet = devWallet_;
+        identityRegistry = identityRegistry_;
+        _feeBps = 250;
+        _nextTaskId = 1;
+        _maxEscrowAmount = 0.1 ether;
+    }
+
+    function setFeePercentage(uint256 feeBps) external onlyRole(FEE_MANAGER_ROLE) {
+        _feeBps = feeBps;
+    }
+
+    function seedStorage(
+        uint256 taskId,
+        IFaivrFeeModule.Task calldata task,
+        address feeToken,
+        uint256 totalFee,
+        address pendingAccount,
+        uint256 pendingAmount,
+        uint256 maxEscrow,
+        address genesisAgent,
+        uint8 genesisUsed,
+        uint256 genesisCount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _tasks[taskId] = IFaivrFeeModule.Task({
+            agentId: task.agentId,
+            client: task.client,
+            token: task.token,
+            amount: task.amount,
+            status: task.status,
+            fundedAt: task.fundedAt,
+            settledAt: task.settledAt,
+            deadline: task.deadline
+        });
+        _totalFees[feeToken] = totalFee;
+        _pendingWithdrawals[pendingAccount] = pendingAmount;
+        _maxEscrowAmount = maxEscrow;
+        _genesisAgents[genesisAgent] = true;
+        _genesisTasksUsed[genesisAgent] = genesisUsed;
+        _genesisAgentCount = genesisCount;
+    }
+
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+}
+
 contract FaivrFeeModuleTest is Test {
     FaivrFeeModule public feeModule;
+    FaivrReputationRegistry public reputation;
     FaivrIdentityRegistry public identity;
     MockUSDC public usdc;
 
@@ -41,6 +133,14 @@ contract FaivrFeeModuleTest is Test {
         vm.prank(agentOwner);
         agentId = identity.register("ipfs://agent1");
 
+        // Deploy reputation registry
+        FaivrReputationRegistry repImpl = new FaivrReputationRegistry();
+        ERC1967Proxy repProxy = new ERC1967Proxy(
+            address(repImpl),
+            abi.encodeCall(FaivrReputationRegistry.initialize, (admin, address(identity)))
+        );
+        reputation = FaivrReputationRegistry(address(repProxy));
+
         // Deploy fee module
         FaivrFeeModule feeImpl = new FaivrFeeModule();
         ERC1967Proxy feeProxy = new ERC1967Proxy(
@@ -51,9 +151,13 @@ contract FaivrFeeModuleTest is Test {
         );
         feeModule = FaivrFeeModule(address(feeProxy));
 
+        vm.startPrank(admin);
+        reputation.grantRole(reputation.SETTLEMENT_SOURCE_ROLE(), address(feeModule));
+        feeModule.setReputationRegistry(address(reputation));
+
         // Remove escrow cap for testing
-        vm.prank(admin);
         feeModule.setMaxEscrowAmount(0);
+        vm.stopPrank();
 
         // Deploy mock USDC
         usdc = new MockUSDC();
@@ -161,6 +265,29 @@ contract FaivrFeeModuleTest is Test {
         assertEq(usdc.balanceOf(agentOwner), agentPayout);
         assertEq(usdc.balanceOf(protocolWallet), protFee);
         assertEq(usdc.balanceOf(devWallet), devFee);
+    }
+
+    function test_settleTask_recordsFeedbackCreditForDirectReview() public {
+        vm.deal(alice, 1 ether);
+        vm.prank(alice);
+        uint256 taskId = feeModule.fundTask{value: 1 ether}(agentId, address(0), 1 ether, 1 days);
+
+        vm.prank(alice);
+        feeModule.settleTask(taskId);
+
+        assertEq(reputation.pendingFeedbackCredits(agentId, alice), 1);
+
+        vm.prank(alice);
+        reputation.giveFeedback(agentId, 91, 0, "quality", "direct", "", "", bytes32(0));
+
+        (int128 value, uint8 decimals, string memory tag1, string memory tag2, bool isRevoked) =
+            reputation.readFeedback(agentId, alice, 1);
+        assertEq(value, 91);
+        assertEq(decimals, 0);
+        assertEq(tag1, "quality");
+        assertEq(tag2, "direct");
+        assertFalse(isRevoked);
+        assertEq(reputation.pendingFeedbackCredits(agentId, alice), 0);
     }
 
     function test_revert_settle_notClient() public {
@@ -333,5 +460,75 @@ contract FaivrFeeModuleTest is Test {
         vm.prank(alice);
         vm.expectRevert();
         feeModule.setMaxEscrowAmount(1 ether);
+    }
+
+    function test_upgrade_preservesLegacyStorageLayout() public {
+        FaivrFeeModuleLegacy legacyImpl = new FaivrFeeModuleLegacy();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(legacyImpl),
+            abi.encodeCall(FaivrFeeModuleLegacy.initialize, (
+                admin, protocolWallet, devWallet, address(identity)
+            ))
+        );
+        FaivrFeeModuleLegacy legacy = FaivrFeeModuleLegacy(address(proxy));
+
+        IFaivrFeeModule.Task memory seededTask = IFaivrFeeModule.Task({
+            agentId: agentId,
+            client: alice,
+            token: address(usdc),
+            amount: 1234e6,
+            status: IFaivrFeeModule.TaskStatus.FUNDED,
+            fundedAt: 111,
+            settledAt: 0,
+            deadline: 222
+        });
+
+        vm.startPrank(admin);
+        legacy.setFeePercentage(500);
+        legacy.seedStorage(
+            7,
+            seededTask,
+            address(usdc),
+            42e6,
+            alice,
+            0.5 ether,
+            9 ether,
+            agentOwner,
+            3,
+            1
+        );
+        vm.stopPrank();
+
+        FaivrFeeModule newImpl = new FaivrFeeModule();
+        vm.prank(admin);
+        legacy.upgradeToAndCall(address(newImpl), "");
+
+        FaivrFeeModule upgraded = FaivrFeeModule(address(proxy));
+
+        assertEq(upgraded.feePercentage(), 500);
+        assertEq(upgraded.protocolWallet(), protocolWallet);
+        assertEq(upgraded.devWallet(), devWallet);
+        assertEq(upgraded.identityRegistry(), address(identity));
+        assertEq(upgraded.totalFeesCollected(address(usdc)), 42e6);
+        assertEq(upgraded.pendingWithdrawal(alice), 0.5 ether);
+        assertEq(upgraded.maxEscrowAmount(), 9 ether);
+        assertTrue(upgraded.isGenesisAgent(agentOwner));
+        assertEq(upgraded.genesisTasksUsed(agentOwner), 3);
+        assertEq(upgraded.genesisAgentCount(), 1);
+        assertEq(upgraded.reputationRegistry(), address(0));
+
+        IFaivrFeeModule.Task memory storedTask = upgraded.getTask(7);
+        assertEq(storedTask.agentId, seededTask.agentId);
+        assertEq(storedTask.client, seededTask.client);
+        assertEq(storedTask.token, seededTask.token);
+        assertEq(storedTask.amount, seededTask.amount);
+        assertTrue(storedTask.status == seededTask.status);
+        assertEq(storedTask.fundedAt, seededTask.fundedAt);
+        assertEq(storedTask.settledAt, seededTask.settledAt);
+        assertEq(storedTask.deadline, seededTask.deadline);
+
+        vm.prank(admin);
+        upgraded.setReputationRegistry(address(reputation));
+        assertEq(upgraded.reputationRegistry(), address(reputation));
     }
 }

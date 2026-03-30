@@ -31,6 +31,7 @@ interface IFaivrVerificationRegistry {
     // ── Functions ────────────────────────────────────────
     function verify(uint256 agentId, string calldata domain, VerificationMethod method) external;
     function revoke(uint256 agentId) external;
+    function syncVerification(uint256 agentId) external returns (uint256 tokenId);
     function isVerified(uint256 agentId) external view returns (bool);
     function getVerification(uint256 agentId) external view returns (Verification memory);
     function setExpiryPeriod(uint256 newPeriod) external;

@@ -27,6 +27,7 @@ interface IFaivrReputationRegistry {
         string responseURI,
         bytes32 responseHash
     );
+    event TaskSettlementRecorded(uint256 indexed taskId, uint256 indexed agentId, address indexed clientAddress);
 
     // ── Errors ───────────────────────────────────────────
     error InvalidValueDecimals(uint8 valueDecimals);
@@ -37,9 +38,11 @@ interface IFaivrReputationRegistry {
     error NotFeedbackOwner();
     error EmptyClientAddresses();
     error ZeroAddress();
+    error FeedbackNotAuthorized(uint256 agentId, address clientAddress);
+    error TaskSettlementAlreadyRecorded(uint256 taskId);
 
     // ── Core ─────────────────────────────────────────────
-    function initialize(address identityRegistry_) external;
+    function initialize(address admin, address identityRegistry_) external;
     function getIdentityRegistry() external view returns (address);
 
     function giveFeedback(
@@ -52,6 +55,21 @@ interface IFaivrReputationRegistry {
         string calldata feedbackURI,
         bytes32 feedbackHash
     ) external;
+
+    function giveFeedbackFor(
+        address clientAddress,
+        uint256 agentId,
+        int128 value,
+        uint8 valueDecimals,
+        string calldata tag1,
+        string calldata tag2,
+        string calldata endpoint,
+        string calldata feedbackURI,
+        bytes32 feedbackHash
+    ) external;
+
+    function recordTaskSettlement(uint256 taskId, uint256 agentId, address clientAddress) external;
+    function pendingFeedbackCredits(uint256 agentId, address clientAddress) external view returns (uint256);
 
     function revokeFeedback(uint256 agentId, uint64 feedbackIndex) external;
 

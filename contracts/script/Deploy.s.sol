@@ -13,13 +13,94 @@ import {FaivrRouter} from "../src/FaivrRouter.sol";
 /// @title Deploy
 /// @notice Deploys all FAIVR contracts behind ERC1967 proxies
 contract Deploy is Script {
+    error AdminPrivateKeyMismatch(address expectedAdmin, address derivedAdmin);
+
+    struct Deployment {
+        address identityProxy;
+        address reputationProxy;
+        address validationProxy;
+        address feeProxy;
+        address routerProxy;
+    }
+
     function run() external {
         address admin = vm.envAddress("ADMIN");
         address protocolWallet = vm.envAddress("PROTOCOL_WALLET");
         address devWallet = vm.envAddress("DEV_WALLET");
+        address broadcaster = vm.envOr("BROADCASTER", address(0));
+        uint256 adminPrivateKey = vm.envOr("ADMIN_PRIVATE_KEY", uint256(0));
 
-        vm.startBroadcast();
+        _run(admin, protocolWallet, devWallet, broadcaster, adminPrivateKey);
+    }
 
+    function run(
+        address admin,
+        address protocolWallet,
+        address devWallet,
+        address broadcaster,
+        uint256 adminPrivateKey
+    ) external {
+        _run(admin, protocolWallet, devWallet, broadcaster, adminPrivateKey);
+    }
+
+    function runAndReturn(
+        address admin,
+        address protocolWallet,
+        address devWallet,
+        address broadcaster,
+        uint256 adminPrivateKey
+    ) external returns (Deployment memory deployment) {
+        return _run(admin, protocolWallet, devWallet, broadcaster, adminPrivateKey);
+    }
+
+    function _run(
+        address admin,
+        address protocolWallet,
+        address devWallet,
+        address broadcaster,
+        uint256 adminPrivateKey
+    ) internal returns (Deployment memory deployment) {
+        _startDeploymentBroadcast(broadcaster);
+        deployment = _deploy(admin, protocolWallet, devWallet);
+        vm.stopBroadcast();
+
+        _startAdminBroadcast(admin, broadcaster, adminPrivateKey);
+        _wireRoles(deployment);
+        vm.stopBroadcast();
+
+        _logSummary(admin, protocolWallet, devWallet, broadcaster, deployment);
+    }
+
+    function _startDeploymentBroadcast(address broadcaster) internal {
+        if (broadcaster == address(0)) {
+            vm.startBroadcast();
+            return;
+        }
+
+        vm.startBroadcast(broadcaster);
+    }
+
+    function _startAdminBroadcast(address admin, address broadcaster, uint256 adminPrivateKey) internal {
+        if (adminPrivateKey != 0) {
+            address derivedAdmin = vm.addr(adminPrivateKey);
+            if (derivedAdmin != admin) revert AdminPrivateKeyMismatch(admin, derivedAdmin);
+            vm.startBroadcast(adminPrivateKey);
+            return;
+        }
+
+        if (admin == broadcaster && admin != address(0)) {
+            vm.startBroadcast(broadcaster);
+            return;
+        }
+
+        vm.startBroadcast(admin);
+    }
+
+    function _deploy(
+        address admin,
+        address protocolWallet,
+        address devWallet
+    ) internal returns (Deployment memory deployment) {
         // ── 1. Deploy implementations ────────────────────
         FaivrIdentityRegistry identityImpl = new FaivrIdentityRegistry();
         FaivrReputationRegistry reputationImpl = new FaivrReputationRegistry();
@@ -36,13 +117,13 @@ contract Deploy is Script {
 
         ERC1967Proxy reputationProxy = new ERC1967Proxy(
             address(reputationImpl),
-            abi.encodeCall(FaivrReputationRegistry.initialize, (admin))
+            abi.encodeCall(FaivrReputationRegistry.initialize, (admin, address(identityProxy)))
         );
         console.log("ReputationRegistry proxy:", address(reputationProxy));
 
         ERC1967Proxy validationProxy = new ERC1967Proxy(
             address(validationImpl),
-            abi.encodeCall(FaivrValidationRegistry.initialize, (admin))
+            abi.encodeCall(FaivrValidationRegistry.initialize, (admin, address(identityProxy)))
         );
         console.log("ValidationRegistry proxy:", address(validationProxy));
 
@@ -69,17 +150,45 @@ contract Deploy is Script {
         );
         console.log("Router proxy:", address(routerProxy));
 
-        vm.stopBroadcast();
+        deployment = Deployment({
+            identityProxy: address(identityProxy),
+            reputationProxy: address(reputationProxy),
+            validationProxy: address(validationProxy),
+            feeProxy: address(feeProxy),
+            routerProxy: address(routerProxy)
+        });
+    }
 
-        // ── 3. Summary ──────────────────────────────────
+    function _wireRoles(Deployment memory deployment) internal {
+        // ── 3. Post-deploy role wiring ───────────────────
+        FaivrIdentityRegistry identity = FaivrIdentityRegistry(deployment.identityProxy);
+        FaivrReputationRegistry reputation = FaivrReputationRegistry(deployment.reputationProxy);
+        FaivrFeeModule feeModule = FaivrFeeModule(deployment.feeProxy);
+
+        identity.grantRole(identity.REGISTRAR_ROLE(), deployment.routerProxy);
+        feeModule.grantRole(feeModule.ROUTER_ROLE(), deployment.routerProxy);
+        reputation.grantRole(reputation.FEEDBACK_ROUTER_ROLE(), deployment.routerProxy);
+        reputation.grantRole(reputation.SETTLEMENT_SOURCE_ROLE(), deployment.feeProxy);
+        feeModule.setReputationRegistry(deployment.reputationProxy);
+    }
+
+    function _logSummary(
+        address admin,
+        address protocolWallet,
+        address devWallet,
+        address broadcaster,
+        Deployment memory deployment
+    ) internal {
+        // ── 4. Summary ──────────────────────────────────
         console.log("\n=== FAIVR Deployment Complete ===");
         console.log("Admin:              ", admin);
         console.log("Protocol Wallet:    ", protocolWallet);
         console.log("Dev Wallet:         ", devWallet);
-        console.log("Identity (proxy):   ", address(identityProxy));
-        console.log("Reputation (proxy): ", address(reputationProxy));
-        console.log("Validation (proxy): ", address(validationProxy));
-        console.log("FeeModule (proxy):  ", address(feeProxy));
-        console.log("Router (proxy):     ", address(routerProxy));
+        console.log("Broadcaster:        ", broadcaster);
+        console.log("Identity (proxy):   ", deployment.identityProxy);
+        console.log("Reputation (proxy): ", deployment.reputationProxy);
+        console.log("Validation (proxy): ", deployment.validationProxy);
+        console.log("FeeModule (proxy):  ", deployment.feeProxy);
+        console.log("Router (proxy):     ", deployment.routerProxy);
     }
 }

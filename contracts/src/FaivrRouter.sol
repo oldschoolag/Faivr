@@ -80,8 +80,11 @@ contract FaivrRouter is
         string calldata tag1,
         string calldata tag2
     ) external override {
+        IFaivrFeeModule.Task memory task = feeModule.getTask(taskId);
+        if (task.agentId != agentId) revert InvalidTaskAgent(taskId, agentId, task.agentId);
+
         feeModule.settleTaskFor(taskId, msg.sender);
-        reputationRegistry.giveFeedback(agentId, value, valueDecimals, tag1, tag2, "", "", bytes32(0));
+        reputationRegistry.giveFeedbackFor(msg.sender, agentId, value, valueDecimals, tag1, tag2, "", "", bytes32(0));
     }
 
     // ── Views ────────────────────────────────────────────

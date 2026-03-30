@@ -16,6 +16,10 @@ contract FaivrReputationRegistry is
     AccessControlUpgradeable,
     IFaivrReputationRegistry
 {
+    // ── Roles ────────────────────────────────────────────
+    bytes32 public constant FEEDBACK_ROUTER_ROLE = keccak256("FEEDBACK_ROUTER_ROLE");
+    bytes32 public constant SETTLEMENT_SOURCE_ROLE = keccak256("SETTLEMENT_SOURCE_ROLE");
+
     // ── Structs (internal storage) ───────────────────────
     struct FeedbackEntry {
         int128 value;
@@ -42,8 +46,14 @@ contract FaivrReputationRegistry is
     /// @dev agentId => clientAddress => feedbackIndex => responder => responseCount
     mapping(uint256 => mapping(address => mapping(uint64 => mapping(address => uint64)))) private _responseCounts;
 
+    /// @dev agentId => clientAddress => number of settled tasks still eligible for feedback
+    mapping(uint256 => mapping(address => uint256)) private _pendingFeedbackCredits;
+
+    /// @dev taskId => whether settlement was already recorded for feedback provenance
+    mapping(uint256 => bool) private _recordedTaskSettlements;
+
     /// @custom:storage-gap
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -51,13 +61,14 @@ contract FaivrReputationRegistry is
         _disableInitializers();
     }
 
-    function initialize(address identityRegistry_) external override initializer {
+    function initialize(address admin, address identityRegistry_) external override initializer {
+        if (admin == address(0)) revert ZeroAddress();
         if (identityRegistry_ == address(0)) revert ZeroAddress();
 
         __UUPSUpgradeable_init();
         __AccessControl_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _identityRegistry = identityRegistry_;
     }
 
@@ -65,6 +76,10 @@ contract FaivrReputationRegistry is
 
     function getIdentityRegistry() external view override returns (address) {
         return _identityRegistry;
+    }
+
+    function pendingFeedbackCredits(uint256 agentId, address clientAddress) external view override returns (uint256) {
+        return _pendingFeedbackCredits[agentId][clientAddress];
     }
 
     // ── Core ─────────────────────────────────────────────
@@ -79,36 +94,34 @@ contract FaivrReputationRegistry is
         string calldata feedbackURI,
         bytes32 feedbackHash
     ) external override {
-        if (valueDecimals > 18) revert InvalidValueDecimals(valueDecimals);
+        _giveFeedback(msg.sender, agentId, value, valueDecimals, tag1, tag2, endpoint, feedbackURI, feedbackHash);
+    }
 
-        // Verify agent exists
+    function giveFeedbackFor(
+        address clientAddress,
+        uint256 agentId,
+        int128 value,
+        uint8 valueDecimals,
+        string calldata tag1,
+        string calldata tag2,
+        string calldata endpoint,
+        string calldata feedbackURI,
+        bytes32 feedbackHash
+    ) external override onlyRole(FEEDBACK_ROUTER_ROLE) {
+        if (clientAddress == address(0)) revert ZeroAddress();
+        _giveFeedback(clientAddress, agentId, value, valueDecimals, tag1, tag2, endpoint, feedbackURI, feedbackHash);
+    }
+
+    function recordTaskSettlement(uint256 taskId, uint256 agentId, address clientAddress) external override onlyRole(SETTLEMENT_SOURCE_ROLE) {
+        if (clientAddress == address(0)) revert ZeroAddress();
+        if (_recordedTaskSettlements[taskId]) revert TaskSettlementAlreadyRecorded(taskId);
+
         _requireAgentExists(agentId);
 
-        // Submitter must not be agent owner or approved operator
-        address agentOwner = IERC721(_identityRegistry).ownerOf(agentId);
-        if (msg.sender == agentOwner) revert SelfFeedbackNotAllowed();
-        if (IERC721(_identityRegistry).isApprovedForAll(agentOwner, msg.sender)) revert SelfFeedbackNotAllowed();
-        if (IERC721(_identityRegistry).getApproved(agentId) == msg.sender) revert SelfFeedbackNotAllowed();
+        _recordedTaskSettlements[taskId] = true;
+        _pendingFeedbackCredits[agentId][clientAddress]++;
 
-        // Track client
-        if (!_isClient[agentId][msg.sender]) {
-            _clients[agentId].push(msg.sender);
-            _isClient[agentId][msg.sender] = true;
-        }
-
-        // Increment feedback index (1-based)
-        uint64 feedbackIndex = _lastIndex[agentId][msg.sender] + 1;
-        _lastIndex[agentId][msg.sender] = feedbackIndex;
-
-        _feedback[agentId][msg.sender][feedbackIndex] = FeedbackEntry({
-            value: value,
-            valueDecimals: valueDecimals,
-            tag1: tag1,
-            tag2: tag2,
-            isRevoked: false
-        });
-
-        emit NewFeedback(agentId, msg.sender, feedbackIndex, value, valueDecimals, tag1, tag1, tag2, endpoint, feedbackURI, feedbackHash);
+        emit TaskSettlementRecorded(taskId, agentId, clientAddress);
     }
 
     function revokeFeedback(uint256 agentId, uint64 feedbackIndex) external override {
@@ -444,6 +457,58 @@ contract FaivrReputationRegistry is
     }
 
     // ── Internal ─────────────────────────────────────────
+
+    function _giveFeedback(
+        address clientAddress,
+        uint256 agentId,
+        int128 value,
+        uint8 valueDecimals,
+        string memory tag1,
+        string memory tag2,
+        string memory endpoint,
+        string memory feedbackURI,
+        bytes32 feedbackHash
+    ) internal {
+        if (valueDecimals > 18) revert InvalidValueDecimals(valueDecimals);
+
+        // Verify agent exists
+        _requireAgentExists(agentId);
+        _consumeFeedbackCredit(agentId, clientAddress);
+
+        // Submitter must not be agent owner or approved operator
+        address agentOwner = IERC721(_identityRegistry).ownerOf(agentId);
+        if (clientAddress == agentOwner) revert SelfFeedbackNotAllowed();
+        if (IERC721(_identityRegistry).isApprovedForAll(agentOwner, clientAddress)) revert SelfFeedbackNotAllowed();
+        if (IERC721(_identityRegistry).getApproved(agentId) == clientAddress) revert SelfFeedbackNotAllowed();
+
+        // Track client
+        if (!_isClient[agentId][clientAddress]) {
+            _clients[agentId].push(clientAddress);
+            _isClient[agentId][clientAddress] = true;
+        }
+
+        // Increment feedback index (1-based)
+        uint64 feedbackIndex = _lastIndex[agentId][clientAddress] + 1;
+        _lastIndex[agentId][clientAddress] = feedbackIndex;
+
+        _feedback[agentId][clientAddress][feedbackIndex] = FeedbackEntry({
+            value: value,
+            valueDecimals: valueDecimals,
+            tag1: tag1,
+            tag2: tag2,
+            isRevoked: false
+        });
+
+        emit NewFeedback(agentId, clientAddress, feedbackIndex, value, valueDecimals, tag1, tag1, tag2, endpoint, feedbackURI, feedbackHash);
+    }
+
+    function _consumeFeedbackCredit(uint256 agentId, address clientAddress) internal {
+        uint256 credits = _pendingFeedbackCredits[agentId][clientAddress];
+        if (credits == 0) revert FeedbackNotAuthorized(agentId, clientAddress);
+        unchecked {
+            _pendingFeedbackCredits[agentId][clientAddress] = credits - 1;
+        }
+    }
 
     function _requireAgentExists(uint256 agentId) internal view {
         // Check if agent exists by calling ownerOf — will revert if not minted

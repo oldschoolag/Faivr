@@ -28,6 +28,7 @@ interface IFaivrFeeModule {
     event TaskReclaimed(uint256 indexed taskId, address indexed client, uint256 amount);
     event FeeUpdated(uint256 oldFee, uint256 newFee, uint256 effectiveAt);
     event MaxEscrowUpdated(uint256 oldMax, uint256 newMax);
+    event ReputationRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 
     error ZeroAmount();
     error InvalidDeadline();
@@ -49,6 +50,7 @@ interface IFaivrFeeModule {
     function setFeePercentage(uint256 feeBps) external;
     function setProtocolWallet(address wallet) external;
     function setDevWallet(address wallet) external;
+    function setReputationRegistry(address reputationRegistry_) external;
 
     function getTask(uint256 taskId) external view returns (Task memory);
     function feePercentage() external view returns (uint256);
@@ -57,6 +59,7 @@ interface IFaivrFeeModule {
     function totalFeesCollected(address token) external view returns (uint256);
     function pendingWithdrawal(address account) external view returns (uint256);
     function withdrawPending() external;
+    function reputationRegistry() external view returns (address);
 
     // ── Genesis Program ──────────────────────────────────
     event GenesisAgentAdded(address indexed agent);

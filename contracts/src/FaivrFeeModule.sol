@@ -7,9 +7,11 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {IFaivrFeeModule} from "./interfaces/IFaivrFeeModule.sol";
+import {IFaivrReputationRegistry} from "./interfaces/IFaivrReputationRegistry.sol";
 
 /// @title FaivrFeeModule
 /// @notice Non-custodial escrow with programmable fee splits (90% protocol / 10% dev)
@@ -55,11 +57,15 @@ contract FaivrFeeModule is
     mapping(address => uint8) private _genesisTasksUsed;
     uint256 private _genesisAgentCount;
 
+    /// @dev Optional reputation registry for recording settled-task feedback provenance.
+    /// Appended after the legacy storage layout to preserve upgrade safety.
+    address public reputationRegistry;
+
     uint256 public constant GENESIS_MAX_AGENTS = 50;
     uint8 public constant GENESIS_FREE_TASKS = 10;
 
-    /// @custom:storage-gap  (49 - 3 new slots = 46)
-    uint256[46] private __gap;
+    /// @custom:storage-gap  legacy gap reduced by 1 slot for reputationRegistry append
+    uint256[45] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -167,84 +173,12 @@ contract FaivrFeeModule is
     }
 
     function settleTask(uint256 taskId) external override nonReentrant whenNotPaused {
-        Task storage task = _tasks[taskId];
-        if (task.status != TaskStatus.FUNDED) revert TaskNotFunded(taskId);
-        if (task.client != msg.sender) revert NotTaskClient(taskId);
-
-        task.status = TaskStatus.SETTLED;
-        task.settledAt = block.timestamp;
-
-        bool genesisExempt = _genesisAgents[task.client] && _genesisTasksUsed[task.client] < GENESIS_FREE_TASKS;
-        if (genesisExempt) {
-            _genesisTasksUsed[task.client]++;
-        }
-
-        uint256 totalFee = genesisExempt ? 0 : (task.amount * _feeBps) / 10_000;
-        uint256 protocolFee = (totalFee * 90) / 100;
-        uint256 devFee = totalFee - protocolFee;
-        uint256 agentPayout = task.amount - totalFee;
-
-        _totalFees[task.token] += totalFee;
-
-        // Look up agent owner from identity registry
-        // Using low-level call to get ownerOf without importing full ERC721
-        (bool success, bytes memory data) = identityRegistry.staticcall(
-            abi.encodeWithSignature("ownerOf(uint256)", task.agentId)
-        );
-        require(success && data.length >= 32, "Agent lookup failed");
-        address agentOwner = abi.decode(data, (address));
-
-        if (task.token == ETH) {
-            _sendETH(agentOwner, agentPayout);
-            _sendETH(_protocolWallet, protocolFee);
-            _sendETH(_devWallet, devFee);
-        } else {
-            IERC20(task.token).safeTransfer(agentOwner, agentPayout);
-            IERC20(task.token).safeTransfer(_protocolWallet, protocolFee);
-            IERC20(task.token).safeTransfer(_devWallet, devFee);
-        }
-
-        emit TaskSettled(taskId, task.agentId, agentOwner, agentPayout, protocolFee, devFee);
+        _settleTask(taskId, msg.sender);
     }
 
     /// @notice Settle a task on behalf of the client. Only callable by ROUTER_ROLE.
     function settleTaskFor(uint256 taskId, address caller) external nonReentrant whenNotPaused onlyRole(ROUTER_ROLE) {
-        Task storage task = _tasks[taskId];
-        if (task.status != TaskStatus.FUNDED) revert TaskNotFunded(taskId);
-        if (task.client != caller) revert NotTaskClient(taskId);
-
-        task.status = TaskStatus.SETTLED;
-        task.settledAt = block.timestamp;
-
-        bool genesisExempt = _genesisAgents[task.client] && _genesisTasksUsed[task.client] < GENESIS_FREE_TASKS;
-        if (genesisExempt) {
-            _genesisTasksUsed[task.client]++;
-        }
-
-        uint256 totalFee = genesisExempt ? 0 : (task.amount * _feeBps) / 10_000;
-        uint256 protocolFee = (totalFee * 90) / 100;
-        uint256 devFee = totalFee - protocolFee;
-        uint256 agentPayout = task.amount - totalFee;
-
-        _totalFees[task.token] += totalFee;
-
-        (bool success, bytes memory data) = identityRegistry.staticcall(
-            abi.encodeWithSignature("ownerOf(uint256)", task.agentId)
-        );
-        require(success && data.length >= 32, "Agent lookup failed");
-        address agentOwner = abi.decode(data, (address));
-
-        if (task.token == ETH) {
-            _sendETH(agentOwner, agentPayout);
-            _sendETH(_protocolWallet, protocolFee);
-            _sendETH(_devWallet, devFee);
-        } else {
-            IERC20(task.token).safeTransfer(agentOwner, agentPayout);
-            IERC20(task.token).safeTransfer(_protocolWallet, protocolFee);
-            IERC20(task.token).safeTransfer(_devWallet, devFee);
-        }
-
-        emit TaskSettled(taskId, task.agentId, agentOwner, agentPayout, protocolFee, devFee);
+        _settleTask(taskId, caller);
     }
 
     function reclaimTask(uint256 taskId) external override nonReentrant {
@@ -280,6 +214,13 @@ contract FaivrFeeModule is
     function setDevWallet(address wallet) external override onlyRole(FEE_MANAGER_ROLE) {
         if (wallet == address(0)) revert ZeroAddress();
         _devWallet = wallet;
+    }
+
+    function setReputationRegistry(address reputationRegistry_) external override onlyRole(FEE_MANAGER_ROLE) {
+        address oldRegistry = reputationRegistry;
+        if (reputationRegistry_ == address(0)) revert ZeroAddress();
+        reputationRegistry = reputationRegistry_;
+        emit ReputationRegistryUpdated(oldRegistry, reputationRegistry_);
     }
 
     function setMaxEscrowAmount(uint256 maxAmount) external onlyRole(FEE_MANAGER_ROLE) {
@@ -335,6 +276,54 @@ contract FaivrFeeModule is
     }
 
     // ── Internal ─────────────────────────────────────────
+    function _settleTask(uint256 taskId, address caller) private {
+        Task storage task = _tasks[taskId];
+        if (task.status != TaskStatus.FUNDED) revert TaskNotFunded(taskId);
+        if (task.client != caller) revert NotTaskClient(taskId);
+
+        task.status = TaskStatus.SETTLED;
+        task.settledAt = block.timestamp;
+
+        bool genesisExempt = _genesisAgents[task.client] && _genesisTasksUsed[task.client] < GENESIS_FREE_TASKS;
+        if (genesisExempt) {
+            _genesisTasksUsed[task.client]++;
+        }
+
+        uint256 totalFee = genesisExempt ? 0 : (task.amount * _feeBps) / 10_000;
+        uint256 protocolFee = (totalFee * 90) / 100;
+        uint256 devFee = totalFee - protocolFee;
+        uint256 agentPayout = task.amount - totalFee;
+
+        _totalFees[task.token] += totalFee;
+        _recordTaskSettlement(taskId, task.agentId, task.client);
+
+        address agentOwner = _agentOwner(task.agentId);
+
+        if (task.token == ETH) {
+            _sendETH(agentOwner, agentPayout);
+            _sendETH(_protocolWallet, protocolFee);
+            _sendETH(_devWallet, devFee);
+        } else {
+            IERC20(task.token).safeTransfer(agentOwner, agentPayout);
+            IERC20(task.token).safeTransfer(_protocolWallet, protocolFee);
+            IERC20(task.token).safeTransfer(_devWallet, devFee);
+        }
+
+        emit TaskSettled(taskId, task.agentId, agentOwner, agentPayout, protocolFee, devFee);
+    }
+
+    function _agentOwner(uint256 agentId) private view returns (address) {
+        return IERC721(identityRegistry).ownerOf(agentId);
+    }
+
+    function _recordTaskSettlement(uint256 taskId, uint256 agentId, address client) private {
+        if (reputationRegistry == address(0)) {
+            return;
+        }
+
+        IFaivrReputationRegistry(reputationRegistry).recordTaskSettlement(taskId, agentId, client);
+    }
+
     function _sendETH(address to, uint256 amount) private {
         (bool ok,) = to.call{value: amount, gas: 10000}("");
         if (!ok) {

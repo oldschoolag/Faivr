@@ -3,9 +3,78 @@ pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {FaivrVerificationRegistry} from "../src/FaivrVerificationRegistry.sol";
 import {IFaivrVerificationRegistry} from "../src/interfaces/IFaivrVerificationRegistry.sol";
 import {FaivrIdentityRegistry} from "../src/FaivrIdentityRegistry.sol";
+
+contract FaivrVerificationRegistryLegacy is Initializable, ERC721Upgradeable, UUPSUpgradeable, AccessControlUpgradeable {
+    bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
+
+    IERC721 public identityRegistry;
+    uint256 public expiryPeriod;
+    uint256 private _nextTokenId;
+    mapping(uint256 agentId => IFaivrVerificationRegistry.Verification) private _verifications;
+    uint256[50] private __gap;
+
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address admin, address identityAddr) external initializer {
+        __ERC721_init("FAIVR Verified Agent", "FVERIFY");
+        __UUPSUpgradeable_init();
+        __AccessControl_init();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(VERIFIER_ROLE, admin);
+
+        identityRegistry = IERC721(identityAddr);
+        expiryPeriod = 90 days;
+        _nextTokenId = 1;
+    }
+
+    function verify(
+        uint256 agentId,
+        string calldata domain,
+        IFaivrVerificationRegistry.VerificationMethod method
+    ) external onlyRole(VERIFIER_ROLE) {
+        address agentOwner = identityRegistry.ownerOf(agentId);
+        IFaivrVerificationRegistry.Verification storage v = _verifications[agentId];
+
+        uint256 tokenId = v.tokenId;
+        if (tokenId == 0) {
+            tokenId = _nextTokenId++;
+            _mint(agentOwner, tokenId);
+        }
+
+        v.domain = domain;
+        v.method = method;
+        v.verifiedAt = block.timestamp;
+        v.expiresAt = block.timestamp + expiryPeriod;
+        v.verified = true;
+        v.tokenId = tokenId;
+    }
+
+    function getVerification(uint256 agentId) external view returns (IFaivrVerificationRegistry.Verification memory) {
+        return _verifications[agentId];
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721Upgradeable, AccessControlUpgradeable)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+}
 
 contract FaivrVerificationRegistryTest is Test {
     FaivrVerificationRegistry public verifier;
@@ -134,6 +203,66 @@ contract FaivrVerificationRegistryTest is Test {
         vm.prank(agentOwner);
         vm.expectRevert(IFaivrVerificationRegistry.SoulboundTransferBlocked.selector);
         verifier.transferFrom(agentOwner, rando, tokenId);
+    }
+
+    function test_transferInvalidatesVerificationUntilSynced() public {
+        vm.prank(verifierBot);
+        verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
+        uint256 oldTokenId = verifier.getVerification(agentId).tokenId;
+
+        vm.prank(agentOwner);
+        identity.transferFrom(agentOwner, rando, agentId);
+
+        assertFalse(verifier.isVerified(agentId));
+        assertFalse(verifier.getVerification(agentId).verified);
+
+        uint256 newTokenId = verifier.syncVerification(agentId);
+        assertTrue(newTokenId > oldTokenId);
+        assertEq(verifier.ownerOf(newTokenId), rando);
+        assertTrue(verifier.isVerified(agentId));
+
+        vm.expectRevert();
+        verifier.ownerOf(oldTokenId);
+    }
+
+    function test_upgrade_preservesLegacyStorageLayout_andSyncsTokenLookup() public {
+        FaivrVerificationRegistryLegacy legacyImpl = new FaivrVerificationRegistryLegacy();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(legacyImpl),
+            abi.encodeCall(FaivrVerificationRegistryLegacy.initialize, (admin, address(identity)))
+        );
+        FaivrVerificationRegistryLegacy legacy = FaivrVerificationRegistryLegacy(address(proxy));
+
+        bytes32 verifierRole = legacy.VERIFIER_ROLE();
+        vm.prank(admin);
+        legacy.grantRole(verifierRole, verifierBot);
+
+        vm.prank(verifierBot);
+        legacy.verify(agentId, "legacy.example", IFaivrVerificationRegistry.VerificationMethod.FILE);
+
+        IFaivrVerificationRegistry.Verification memory legacyVerification = legacy.getVerification(agentId);
+        assertTrue(legacyVerification.verified);
+        assertEq(legacy.ownerOf(legacyVerification.tokenId), agentOwner);
+
+        FaivrVerificationRegistry newImpl = new FaivrVerificationRegistry();
+        vm.prank(admin);
+        legacy.upgradeToAndCall(address(newImpl), "");
+
+        FaivrVerificationRegistry upgraded = FaivrVerificationRegistry(address(proxy));
+        IFaivrVerificationRegistry.Verification memory upgradedVerification = upgraded.getVerification(agentId);
+        assertEq(upgradedVerification.domain, "legacy.example");
+        assertEq(uint256(upgradedVerification.method), uint256(IFaivrVerificationRegistry.VerificationMethod.FILE));
+        assertTrue(upgradedVerification.verified);
+        assertEq(upgraded.ownerOf(upgradedVerification.tokenId), agentOwner);
+
+        string memory uriBeforeSync = upgraded.tokenURI(upgradedVerification.tokenId);
+        assertTrue(bytes(uriBeforeSync).length > 0);
+
+        uint256 syncedTokenId = upgraded.syncVerification(agentId);
+        assertEq(syncedTokenId, upgradedVerification.tokenId);
+
+        string memory uriAfterSync = upgraded.tokenURI(syncedTokenId);
+        assertTrue(bytes(uriAfterSync).length > 0);
     }
 
     // ── Access Control ───────────────────────────────────
