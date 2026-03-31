@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import dns from "dns/promises";
-
-// Import the shared challenge store
-// In production, this would be a database
-const challenges = new Map<
-  string,
-  { agentId: string; domain: string; method: string; token: string; createdAt: number }
->();
+import { verificationChallenges } from "@/lib/verification/challenges";
 
 async function checkDNS(domain: string, token: string): Promise<boolean> {
   try {
@@ -30,13 +24,6 @@ async function checkFile(domain: string, token: string): Promise<boolean> {
   }
 }
 
-async function checkTwitter(_agentId: string, _token: string): Promise<boolean> {
-  // Stub — requires Twitter API integration
-  // In production: search recent tweets mentioning @faivr_ai with the token
-  console.log("[verify/check] Twitter verification is stubbed — returning false");
-  return false;
-}
-
 export async function POST(req: NextRequest) {
   try {
     const { agentId, challengeToken, method } = await req.json();
@@ -45,54 +32,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    if (!["dns", "file"].includes(method)) {
+      return NextResponse.json({ error: "Invalid method. Use dns or file." }, { status: 400 });
+    }
+
     const key = `${agentId}-${method}`;
-    const challenge = challenges.get(key);
+    const challenge = verificationChallenges.get(key);
 
     if (!challenge || challenge.token !== challengeToken) {
       return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 404 });
     }
 
-    // Check if challenge is older than 1 hour
     if (Date.now() - challenge.createdAt > 3600000) {
-      challenges.delete(key);
+      verificationChallenges.delete(key);
       return NextResponse.json({ error: "Challenge expired. Please generate a new one." }, { status: 410 });
     }
 
-    let verified = false;
-
-    switch (method) {
-      case "dns":
-        verified = await checkDNS(challenge.domain, challengeToken);
-        break;
-      case "file":
-        verified = await checkFile(challenge.domain, challengeToken);
-        break;
-      case "twitter":
-        verified = await checkTwitter(String(agentId), challengeToken);
-        break;
-      default:
-        return NextResponse.json({ error: "Invalid method" }, { status: 400 });
-    }
+    const verified =
+      method === "dns"
+        ? await checkDNS(challenge.domain, challengeToken)
+        : await checkFile(challenge.domain, challengeToken);
 
     if (verified) {
-      challenges.delete(key);
-
-      // In production: call the smart contract here via ethers/viem
-      // using a server-side wallet with VERIFIER_ROLE
-      // const tx = await verifierContract.verify(agentId, domain, methodEnum);
+      verificationChallenges.delete(key);
 
       return NextResponse.json({
         verified: true,
+        challengeVerified: true,
         agentId,
         domain: challenge.domain,
         method,
-        message: "Verification successful! On-chain record will be created.",
+        mode: "offchain-preview",
+        message:
+          "Challenge confirmed. This preview flow does not mint a badge or submit an on-chain verification transaction yet.",
       });
     }
 
     return NextResponse.json({
       verified: false,
-      message: `Verification not found. Make sure you've completed the ${method} challenge and try again.`,
+      challengeVerified: false,
+      mode: "offchain-preview",
+      message: `Verification challenge not found yet. Make sure you've completed the ${method} instructions and try again.`,
     });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

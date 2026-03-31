@@ -1,13 +1,27 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {FaivrIdentityRegistry} from "../src/FaivrIdentityRegistry.sol";
 import {FaivrReputationRegistry} from "../src/FaivrReputationRegistry.sol";
 import {IFaivrReputationRegistry} from "../src/interfaces/IFaivrReputationRegistry.sol";
 
 contract FaivrReputationRegistryTest is Test {
+    event NewFeedback(
+        uint256 indexed agentId,
+        address indexed clientAddress,
+        uint64 feedbackIndex,
+        int128 value,
+        uint8 valueDecimals,
+        string indexed indexedTag1,
+        string tag1,
+        string tag2,
+        string endpoint,
+        string feedbackURI,
+        bytes32 feedbackHash
+    );
+
     FaivrIdentityRegistry public identity;
     FaivrReputationRegistry public reputation;
 
@@ -20,7 +34,6 @@ contract FaivrReputationRegistryTest is Test {
     uint256 public agentId;
 
     function setUp() public {
-        // Deploy identity
         FaivrIdentityRegistry idImpl = new FaivrIdentityRegistry();
         ERC1967Proxy idProxy = new ERC1967Proxy(
             address(idImpl),
@@ -28,11 +41,9 @@ contract FaivrReputationRegistryTest is Test {
         );
         identity = FaivrIdentityRegistry(address(idProxy));
 
-        // Register an agent
         vm.prank(agentOwner);
         agentId = identity.register("ipfs://agent1");
 
-        // Deploy reputation
         FaivrReputationRegistry repImpl = new FaivrReputationRegistry();
         vm.prank(admin);
         ERC1967Proxy repProxy = new ERC1967Proxy(
@@ -42,13 +53,9 @@ contract FaivrReputationRegistryTest is Test {
         reputation = FaivrReputationRegistry(address(repProxy));
     }
 
-    // ── initialize ───────────────────────────────────────
-
     function test_getIdentityRegistry() public view {
         assertEq(reputation.getIdentityRegistry(), address(identity));
     }
-
-    // ── giveFeedback ─────────────────────────────────────
 
     function test_giveFeedback() public {
         vm.prank(client1);
@@ -61,6 +68,28 @@ contract FaivrReputationRegistryTest is Test {
         assertEq(tag1, "starred");
         assertEq(tag2, "");
         assertFalse(isRevoked);
+    }
+
+    function test_giveFeedback_eventShapeIsIntentional() public {
+        vm.expectEmit(true, true, false, true, address(reputation));
+        emit NewFeedback(agentId, client1, 1, 87, 0, "starred", "starred", "quality", "", "", bytes32(0));
+
+        vm.prank(client1);
+        reputation.giveFeedback(agentId, 87, 0, "starred", "quality", "", "", bytes32(0));
+    }
+
+    function test_giveFeedbackFor_preservesOriginalClient() public {
+        bytes32 routerRole = reputation.ROUTER_ROLE();
+        vm.prank(admin);
+        reputation.grantRole(routerRole, admin);
+
+        vm.prank(admin);
+        reputation.giveFeedbackFor(client1, agentId, 91, 0, "router", "", "", "", bytes32(0));
+
+        (int128 value,, string memory tag1,,) = reputation.readFeedback(agentId, client1, 1);
+        assertEq(value, 91);
+        assertEq(tag1, "router");
+        assertEq(reputation.getLastIndex(agentId, client1), 1);
     }
 
     function test_giveFeedback_multipleFeedbackSameClient() public {
@@ -101,8 +130,6 @@ contract FaivrReputationRegistryTest is Test {
         assertEq(tag2, "month");
     }
 
-    // ── revokeFeedback ───────────────────────────────────
-
     function test_revokeFeedback() public {
         vm.prank(client1);
         reputation.giveFeedback(agentId, 87, 0, "", "", "", "", bytes32(0));
@@ -130,8 +157,6 @@ contract FaivrReputationRegistryTest is Test {
         reputation.revokeFeedback(agentId, 1);
     }
 
-    // ── appendResponse ───────────────────────────────────
-
     function test_appendResponse() public {
         vm.prank(client1);
         reputation.giveFeedback(agentId, 87, 0, "", "", "", "", bytes32(0));
@@ -151,8 +176,6 @@ contract FaivrReputationRegistryTest is Test {
         reputation.appendResponse(agentId, client1, 1, "ipfs://response", bytes32(0));
     }
 
-    // ── getSummary ───────────────────────────────────────
-
     function test_getSummary() public {
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "starred", "", "", "", bytes32(0));
@@ -163,9 +186,26 @@ contract FaivrReputationRegistryTest is Test {
         clients[0] = client1;
         clients[1] = client2;
 
-        (uint64 count, int128 summaryValue,) = reputation.getSummary(agentId, clients, "", "");
+        (uint64 count, int128 summaryValue, uint8 summaryDecimals) = reputation.getSummary(agentId, clients, "", "");
         assertEq(count, 2);
-        assertEq(summaryValue, 85); // (80+90)/2
+        assertEq(summaryValue, 85e18);
+        assertEq(summaryDecimals, 18);
+    }
+
+    function test_getSummary_normalizesDecimalsTo18() public {
+        vm.prank(client1);
+        reputation.giveFeedback(agentId, 15, 1, "score", "", "", "", bytes32(0)); // 1.5
+        vm.prank(client2);
+        reputation.giveFeedback(agentId, 200, 2, "score", "", "", "", bytes32(0)); // 2.0
+
+        address[] memory clients = new address[](2);
+        clients[0] = client1;
+        clients[1] = client2;
+
+        (uint64 count, int128 summaryValue, uint8 summaryDecimals) = reputation.getSummary(agentId, clients, "", "");
+        assertEq(count, 2);
+        assertEq(summaryValue, 175e16); // 1.75 with 18 decimals
+        assertEq(summaryDecimals, 18);
     }
 
     function test_getSummary_withTagFilter() public {
@@ -177,9 +217,10 @@ contract FaivrReputationRegistryTest is Test {
         address[] memory clients = new address[](1);
         clients[0] = client1;
 
-        (uint64 count, int128 summaryValue,) = reputation.getSummary(agentId, clients, "starred", "");
+        (uint64 count, int128 summaryValue, uint8 summaryDecimals) = reputation.getSummary(agentId, clients, "starred", "");
         assertEq(count, 1);
-        assertEq(summaryValue, 80);
+        assertEq(summaryValue, 80e18);
+        assertEq(summaryDecimals, 18);
     }
 
     function test_revert_getSummary_emptyClients() public {
@@ -201,8 +242,6 @@ contract FaivrReputationRegistryTest is Test {
         assertEq(count, 0);
     }
 
-    // ── readAllFeedback ──────────────────────────────────
-
     function test_readAllFeedback() public {
         vm.prank(client1);
         reputation.giveFeedback(agentId, 80, 0, "starred", "", "", "", bytes32(0));
@@ -213,13 +252,8 @@ contract FaivrReputationRegistryTest is Test {
         clients[0] = client1;
         clients[1] = client2;
 
-        (
-            address[] memory returnedClients,
-            uint64[] memory indexes,
-            int128[] memory values,
-            ,,
-            ,
-        ) = reputation.readAllFeedback(agentId, clients, "", "", false);
+        (address[] memory returnedClients, uint64[] memory indexes, int128[] memory values,,,,) =
+            reputation.readAllFeedback(agentId, clients, "", "", false);
 
         assertEq(returnedClients.length, 2);
         assertEq(values[0], 80);
@@ -237,8 +271,7 @@ contract FaivrReputationRegistryTest is Test {
         address[] memory clients = new address[](1);
         clients[0] = client1;
 
-        (address[] memory returnedClients,,,,,,) =
-            reputation.readAllFeedback(agentId, clients, "", "", false);
+        (address[] memory returnedClients,,,,,,) = reputation.readAllFeedback(agentId, clients, "", "", false);
         assertEq(returnedClients.length, 0);
     }
 
@@ -251,12 +284,9 @@ contract FaivrReputationRegistryTest is Test {
         address[] memory clients = new address[](1);
         clients[0] = client1;
 
-        (address[] memory returnedClients,,,,,,) =
-            reputation.readAllFeedback(agentId, clients, "", "", true);
+        (address[] memory returnedClients,,,,,,) = reputation.readAllFeedback(agentId, clients, "", "", true);
         assertEq(returnedClients.length, 1);
     }
-
-    // ── getClients / getLastIndex ────────────────────────
 
     function test_getClients() public {
         vm.prank(client1);

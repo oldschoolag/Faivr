@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IFaivrRouter} from "./interfaces/IFaivrRouter.sol";
 import {IFaivrIdentityRegistry} from "./interfaces/IFaivrIdentityRegistry.sol";
@@ -18,14 +19,21 @@ contract FaivrRouter is
     AccessControlUpgradeable,
     IFaivrRouter
 {
+    error TaskAgentMismatch(uint256 taskId, uint256 expectedAgentId, uint256 providedAgentId);
+    error FeedbackAlreadyGiven(uint256 taskId);
+    error ApproveFeeModuleNotRouter(address feeModule, address router);
+
     // ── Storage ──────────────────────────────────────────
     IFaivrIdentityRegistry public identityRegistry;
     IFaivrReputationRegistry public reputationRegistry;
     address public validationRegistry;
     IFaivrFeeModule public feeModule;
 
+    /// @dev Guards the router's combined settle+feedback flow against duplicate feedback submissions.
+    mapping(uint256 taskId => bool) public feedbackGivenForTask;
+
     /// @custom:storage-gap
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -63,6 +71,10 @@ contract FaivrRouter is
         uint256 amount,
         uint256 deadline
     ) external payable override returns (uint256 agentId, uint256 taskId) {
+        if (token != address(0) && IERC20(token).allowance(msg.sender, address(feeModule)) < amount) {
+            revert ApproveFeeModuleNotRouter(address(feeModule), address(this));
+        }
+
         agentId = identityRegistry.registerFor(msg.sender, agentURI);
 
         if (token == address(0)) {
@@ -80,8 +92,15 @@ contract FaivrRouter is
         string calldata tag1,
         string calldata tag2
     ) external override {
+        if (feedbackGivenForTask[taskId]) revert FeedbackAlreadyGiven(taskId);
+
+        IFaivrFeeModule.Task memory task = feeModule.getTask(taskId);
+        if (task.agentId != agentId) revert TaskAgentMismatch(taskId, task.agentId, agentId);
+
         feeModule.settleTaskFor(taskId, msg.sender);
-        reputationRegistry.giveFeedback(agentId, value, valueDecimals, tag1, tag2, "", "", bytes32(0));
+        reputationRegistry.giveFeedbackFor(msg.sender, agentId, value, valueDecimals, tag1, tag2, "", "", bytes32(0));
+
+        feedbackGivenForTask[taskId] = true;
     }
 
     // ── Views ────────────────────────────────────────────

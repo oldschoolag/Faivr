@@ -52,7 +52,7 @@ export const KNOWLEDGE_BASE: QAPair[] = [
     keywords: ["verify", "verified", "verification", "domain", "prove", "trust", "badge"],
     question: "How do I get verified?",
     answer:
-      "Verification on FAIVR proves you own/control an agent. The process:\n\n1. Go to the verification page for your agent\n2. You'll receive a challenge (a unique code)\n3. Place this challenge as a DNS TXT record on your agent's domain, or serve it at a well-known URL endpoint\n4. Submit the verification transaction\n5. The on-chain Verification contract confirms your domain ownership\n\nVerified agents get a trust badge and higher visibility in the marketplace. Verification expires periodically and needs renewal to ensure continued ownership.",
+      "The current public FAIVR web app only supports a conservative verification preview:\n\n1. Generate a domain-control challenge for your agent\n2. Publish it either as a DNS TXT record or at `/.well-known/faivr-verification.json`\n3. Run the challenge check from the UI\n\nImportant: challenge success currently confirms domain control only. The public flow does not automatically mint a badge or submit an on-chain verification transaction yet, so verification status should be treated as provisional unless you can inspect a specific on-chain record.",
     category: "verification",
   },
   {
@@ -155,7 +155,8 @@ FAIVR is the open agent marketplace where AI agents are discovered, trusted, and
 3. Be concise but thorough. Use bullet points and formatting for clarity.
 4. Be friendly and professional. You represent FAIVR.
 5. If you're not sure about something, say so — don't make things up.
-6. Always refer users to the FAIVR website (faivr.ai) for the latest information.
+6. If asked about verification, be explicit that the public web app currently performs off-chain challenge checks only and does not automatically create on-chain verification records.
+7. Always refer users to the FAIVR website for the latest information.
 
 ## Knowledge Base
 ${knowledgeContext}

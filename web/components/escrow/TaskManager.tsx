@@ -6,7 +6,6 @@ import { Clock, CheckCircle2, RotateCcw, Loader2, AlertCircle } from "lucide-rea
 import { Button } from "@/components/ui/Button";
 import { useUserTasks, useSettleTask, useReclaimTask, STATUS_LABELS } from "@/hooks/useEscrow";
 import type { TaskInfo } from "@/hooks/useEscrow";
-import { useState } from "react";
 
 function deadlineCountdown(deadline: bigint): string {
   const now = BigInt(Math.floor(Date.now() / 1000));
@@ -30,11 +29,10 @@ function statusColor(status: number): string {
 function TaskCard({ task }: { task: TaskInfo }) {
   const { settleTask, isPending: settlingPending, isConfirming: settlingConfirming, error: settleError } = useSettleTask();
   const { reclaimTask, isPending: reclaimPending, isConfirming: reclaimConfirming, error: reclaimError } = useReclaimTask();
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const isFunded = task.status === 0;
   const now = BigInt(Math.floor(Date.now() / 1000));
-  const isPastDeadline = task.fundedAt + task.deadline <= now;
+  const isPastDeadline = task.deadline <= now;
   const settling = settlingPending || settlingConfirming;
   const reclaiming = reclaimPending || reclaimConfirming;
 
@@ -58,7 +56,7 @@ function TaskCard({ task }: { task: TaskInfo }) {
         <span className="text-zinc-400">{formatEther(task.amount)} ETH</span>
         <span className="flex items-center gap-1 text-xs text-zinc-500">
           <Clock className="h-3 w-3" />
-          {isFunded ? deadlineCountdown(task.fundedAt + task.deadline) : STATUS_LABELS[task.status]}
+          {isFunded ? deadlineCountdown(task.deadline) : STATUS_LABELS[task.status]}
         </span>
       </div>
 

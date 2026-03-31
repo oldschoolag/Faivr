@@ -7,6 +7,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {IFaivrFeeModule} from "./interfaces/IFaivrFeeModule.sol";
@@ -38,21 +39,23 @@ contract FaivrFeeModule is
     address private _protocolWallet;
     address private _devWallet;
 
-    /// @dev Reference to the identity registry for agent owner lookups
+    /// @dev Reference to the identity registry for agent owner lookups.
     address public identityRegistry;
 
     mapping(uint256 taskId => Task) private _tasks;
     mapping(address token => uint256) private _totalFees;
 
-    /// @dev Pending ETH withdrawals for addresses whose transfers failed
+    /// @dev Pending ETH withdrawals for addresses whose transfers failed.
     mapping(address => uint256) private _pendingWithdrawals;
 
-    /// @dev Maximum escrow amount per task (0 = unlimited)
+    /// @dev Maximum escrow amount per task (0 = unlimited).
     uint256 private _maxEscrowAmount;
 
     // ── Genesis Program Storage ──────────────────────────
-    mapping(address => bool) private _genesisAgents;
-    mapping(address => uint8) private _genesisTasksUsed;
+    /// @dev Address-based sponsor list. Despite the legacy naming, this is keyed by task client,
+    /// not by agentId, so the exemption follows the paying address across its eligible tasks.
+    mapping(address client => bool) private _genesisAgents;
+    mapping(address client => uint8) private _genesisTasksUsed;
     uint256 private _genesisAgentCount;
 
     uint256 public constant GENESIS_MAX_AGENTS = 50;
@@ -113,7 +116,9 @@ contract FaivrFeeModule is
         }
 
         taskId = _nextTaskId;
-        unchecked { _nextTaskId++; }
+        unchecked {
+            _nextTaskId++;
+        }
 
         _tasks[taskId] = Task({
             agentId: agentId,
@@ -150,7 +155,9 @@ contract FaivrFeeModule is
         }
 
         taskId = _nextTaskId;
-        unchecked { _nextTaskId++; }
+        unchecked {
+            _nextTaskId++;
+        }
 
         _tasks[taskId] = Task({
             agentId: agentId,
@@ -167,84 +174,12 @@ contract FaivrFeeModule is
     }
 
     function settleTask(uint256 taskId) external override nonReentrant whenNotPaused {
-        Task storage task = _tasks[taskId];
-        if (task.status != TaskStatus.FUNDED) revert TaskNotFunded(taskId);
-        if (task.client != msg.sender) revert NotTaskClient(taskId);
-
-        task.status = TaskStatus.SETTLED;
-        task.settledAt = block.timestamp;
-
-        bool genesisExempt = _genesisAgents[task.client] && _genesisTasksUsed[task.client] < GENESIS_FREE_TASKS;
-        if (genesisExempt) {
-            _genesisTasksUsed[task.client]++;
-        }
-
-        uint256 totalFee = genesisExempt ? 0 : (task.amount * _feeBps) / 10_000;
-        uint256 protocolFee = (totalFee * 90) / 100;
-        uint256 devFee = totalFee - protocolFee;
-        uint256 agentPayout = task.amount - totalFee;
-
-        _totalFees[task.token] += totalFee;
-
-        // Look up agent owner from identity registry
-        // Using low-level call to get ownerOf without importing full ERC721
-        (bool success, bytes memory data) = identityRegistry.staticcall(
-            abi.encodeWithSignature("ownerOf(uint256)", task.agentId)
-        );
-        require(success && data.length >= 32, "Agent lookup failed");
-        address agentOwner = abi.decode(data, (address));
-
-        if (task.token == ETH) {
-            _sendETH(agentOwner, agentPayout);
-            _sendETH(_protocolWallet, protocolFee);
-            _sendETH(_devWallet, devFee);
-        } else {
-            IERC20(task.token).safeTransfer(agentOwner, agentPayout);
-            IERC20(task.token).safeTransfer(_protocolWallet, protocolFee);
-            IERC20(task.token).safeTransfer(_devWallet, devFee);
-        }
-
-        emit TaskSettled(taskId, task.agentId, agentOwner, agentPayout, protocolFee, devFee);
+        _settleTask(taskId, msg.sender);
     }
 
     /// @notice Settle a task on behalf of the client. Only callable by ROUTER_ROLE.
     function settleTaskFor(uint256 taskId, address caller) external nonReentrant whenNotPaused onlyRole(ROUTER_ROLE) {
-        Task storage task = _tasks[taskId];
-        if (task.status != TaskStatus.FUNDED) revert TaskNotFunded(taskId);
-        if (task.client != caller) revert NotTaskClient(taskId);
-
-        task.status = TaskStatus.SETTLED;
-        task.settledAt = block.timestamp;
-
-        bool genesisExempt = _genesisAgents[task.client] && _genesisTasksUsed[task.client] < GENESIS_FREE_TASKS;
-        if (genesisExempt) {
-            _genesisTasksUsed[task.client]++;
-        }
-
-        uint256 totalFee = genesisExempt ? 0 : (task.amount * _feeBps) / 10_000;
-        uint256 protocolFee = (totalFee * 90) / 100;
-        uint256 devFee = totalFee - protocolFee;
-        uint256 agentPayout = task.amount - totalFee;
-
-        _totalFees[task.token] += totalFee;
-
-        (bool success, bytes memory data) = identityRegistry.staticcall(
-            abi.encodeWithSignature("ownerOf(uint256)", task.agentId)
-        );
-        require(success && data.length >= 32, "Agent lookup failed");
-        address agentOwner = abi.decode(data, (address));
-
-        if (task.token == ETH) {
-            _sendETH(agentOwner, agentPayout);
-            _sendETH(_protocolWallet, protocolFee);
-            _sendETH(_devWallet, devFee);
-        } else {
-            IERC20(task.token).safeTransfer(agentOwner, agentPayout);
-            IERC20(task.token).safeTransfer(_protocolWallet, protocolFee);
-            IERC20(task.token).safeTransfer(_devWallet, devFee);
-        }
-
-        emit TaskSettled(taskId, task.agentId, agentOwner, agentPayout, protocolFee, devFee);
+        _settleTask(taskId, caller);
     }
 
     function reclaimTask(uint256 taskId) external override nonReentrant {
@@ -335,10 +270,49 @@ contract FaivrFeeModule is
     }
 
     // ── Internal ─────────────────────────────────────────
+    function _settleTask(uint256 taskId, address caller) private {
+        Task storage task = _tasks[taskId];
+        if (task.status != TaskStatus.FUNDED) revert TaskNotFunded(taskId);
+        if (task.client != caller) revert NotTaskClient(taskId);
+
+        task.status = TaskStatus.SETTLED;
+        task.settledAt = block.timestamp;
+
+        bool genesisExempt = _genesisAgents[task.client] && _genesisTasksUsed[task.client] < GENESIS_FREE_TASKS;
+        if (genesisExempt) {
+            _genesisTasksUsed[task.client]++;
+        }
+
+        uint256 totalFee = genesisExempt ? 0 : (task.amount * _feeBps) / 10_000;
+        uint256 protocolFee = (totalFee * 90) / 100;
+        uint256 devFee = totalFee - protocolFee;
+        uint256 agentPayout = task.amount - totalFee;
+
+        _totalFees[task.token] += totalFee;
+
+        address agentOwner = _agentOwner(task.agentId);
+
+        if (task.token == ETH) {
+            _sendETH(agentOwner, agentPayout);
+            _sendETH(_protocolWallet, protocolFee);
+            _sendETH(_devWallet, devFee);
+        } else {
+            IERC20(task.token).safeTransfer(agentOwner, agentPayout);
+            IERC20(task.token).safeTransfer(_protocolWallet, protocolFee);
+            IERC20(task.token).safeTransfer(_devWallet, devFee);
+        }
+
+        emit TaskSettled(taskId, task.agentId, agentOwner, agentPayout, protocolFee, devFee);
+    }
+
+    function _agentOwner(uint256 agentId) private view returns (address) {
+        return IERC721(identityRegistry).ownerOf(agentId);
+    }
+
     function _sendETH(address to, uint256 amount) private {
         (bool ok,) = to.call{value: amount, gas: 10000}("");
         if (!ok) {
-            // Escrow for pull withdrawal instead of reverting
+            // Escrow for pull withdrawal instead of reverting.
             _pendingWithdrawals[to] += amount;
         }
     }

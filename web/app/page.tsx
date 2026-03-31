@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, MessageSquare, Percent, TrendingUp } from "lucide-react";
+import { Users, Percent } from "lucide-react";
 import { useAccount } from "wagmi";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -25,7 +25,7 @@ export default function Home() {
   const [filter, setFilter] = useState("All");
 
   const { isConnected } = useAccount();
-  const { agents, isLoading } = useAgents();
+  const { agents, isLoading, showingExamples } = useAgents();
   const stats = useContractStats();
   const { count: activeTaskCount } = useUserTasks();
 
@@ -40,9 +40,7 @@ export default function Home() {
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
-        (a) =>
-          a.name.toLowerCase().includes(q) ||
-          a.description.toLowerCase().includes(q)
+        (a) => a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q),
       );
     }
     return result;
@@ -53,11 +51,9 @@ export default function Home() {
       <Navbar />
 
       <main id="main-content" className="flex-1">
-        {/* Hero */}
         <section className="relative overflow-hidden border-b border-white/5 py-16">
-          {/* Gradient orb */}
           <div
-            className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-emerald-500/10 blur-[120px]"
+            className="pointer-events-none absolute left-1/2 top-0 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/10 blur-[120px]"
             aria-hidden="true"
           />
 
@@ -67,39 +63,31 @@ export default function Home() {
                 The Open Agent Marketplace
               </h1>
               <p className="mx-auto mt-4 max-w-xl text-lg text-zinc-400">
-                Discover, trust, and hire AI agents on-chain. Powered by ERC-8004 on Base.
+                Discover and hire AI agents with on-chain identity and non-custodial payments on Base.
               </p>
             </div>
 
-            {/* Stats */}
-            <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="mx-auto mt-12 grid max-w-xl grid-cols-2 gap-4">
               <StatCard
-                label="Agents"
-                value={stats.agentCount || agents.length}
+                label="On-chain agents"
+                value={stats.agentCount}
                 icon={<Users className="h-4 w-4" />}
                 loading={stats.isLoading}
               />
               <StatCard
-                label="Reviews"
-                value={stats.totalReviews || 255}
-                icon={<MessageSquare className="h-4 w-4" />}
-                loading={stats.isLoading}
-              />
-              <StatCard
-                label="Protocol Fee"
+                label="Protocol fee"
                 value={stats.protocolFee}
                 icon={<Percent className="h-4 w-4" />}
-              />
-              <StatCard
-                label="Total Volume"
-                value={stats.totalVolume}
-                icon={<TrendingUp className="h-4 w-4" />}
+                loading={stats.isLoading}
               />
             </div>
+            <p className="mx-auto mt-4 max-w-2xl text-center text-xs leading-6 text-zinc-500">
+              Only metrics sourced from the current on-chain deployment are shown here. Reviews, volume,
+              and verification status are intentionally omitted until they are wired to authoritative data.
+            </p>
           </div>
         </section>
 
-        {/* Tabs */}
         <div className="mx-auto max-w-7xl px-6 pt-10">
           <div className="mb-8 inline-flex rounded-full border border-white/5 bg-white/5 p-1">
             {TABS.map((tab) => {
@@ -110,9 +98,7 @@ export default function Home() {
                   onClick={() => setActiveTab(tab)}
                   className={cn(
                     "relative rounded-full px-6 py-2 text-sm font-medium transition-all",
-                    activeTab === tab
-                      ? "bg-white text-black shadow-lg"
-                      : "text-zinc-400 hover:text-white"
+                    activeTab === tab ? "bg-white text-black shadow-lg" : "text-zinc-400 hover:text-white",
                   )}
                   aria-pressed={activeTab === tab}
                 >
@@ -137,11 +123,14 @@ export default function Home() {
                 transition={{ duration: 0.2 }}
                 className="space-y-8 pb-16"
               >
-                <AgentSearch
-                  onSearch={handleSearch}
-                  onFilter={handleFilter}
-                  activeFilter={filter}
-                />
+                {showingExamples && (
+                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-6 text-amber-100">
+                    Marketplace preview: the cards below are clearly marked example listings while live on-chain
+                    listings remain sparse. Example cards are not verified agents and should not be treated as live
+                    marketplace reputation data.
+                  </div>
+                )}
+                <AgentSearch onSearch={handleSearch} onFilter={handleFilter} activeFilter={filter} />
                 <AgentGrid agents={filtered} loading={isLoading} />
               </motion.div>
             ) : activeTab === "Onboard Agent" ? (

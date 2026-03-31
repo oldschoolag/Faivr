@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logFeedback, getFeedback, type FeedbackEntry } from "@/lib/support/learnings";
+import {
+  isAuthorizedSupportAdminRequest,
+  isSupportAdminEnabled,
+  supportAdminDisabledResponse,
+  supportAdminUnauthorizedResponse,
+} from "@/lib/support/admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +20,15 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!isSupportAdminEnabled()) {
+    return supportAdminDisabledResponse();
+  }
+
+  if (!isAuthorizedSupportAdminRequest(req)) {
+    return supportAdminUnauthorizedResponse();
+  }
+
   try {
     const entries = await getFeedback();
     return NextResponse.json({ entries });

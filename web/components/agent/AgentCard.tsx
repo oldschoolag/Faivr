@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FundTaskForm } from "@/components/escrow/FundTaskForm";
+import { CHAIN_ID } from "@/lib/contracts";
 import { useState } from "react";
 
 export interface AgentData {
@@ -181,7 +182,7 @@ export function AgentCard({ agent }: { agent: AgentData }) {
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-zinc-500">Network</span>
-                    <span className="text-white">Base Sepolia</span>
+                    <span className="text-white">{CHAIN_ID === 8453 ? "Base Mainnet" : `Chain ${CHAIN_ID}`}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-zinc-500">Standard</span>

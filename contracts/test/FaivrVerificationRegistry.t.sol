@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {FaivrVerificationRegistry} from "../src/FaivrVerificationRegistry.sol";
 import {IFaivrVerificationRegistry} from "../src/interfaces/IFaivrVerificationRegistry.sol";
@@ -14,11 +14,11 @@ contract FaivrVerificationRegistryTest is Test {
     address public admin = makeAddr("admin");
     address public verifierBot = makeAddr("verifierBot");
     address public agentOwner = makeAddr("agentOwner");
+    address public newOwner = makeAddr("newOwner");
     address public rando = makeAddr("rando");
     uint256 public agentId;
 
     function setUp() public {
-        // Deploy identity registry
         FaivrIdentityRegistry identityImpl = new FaivrIdentityRegistry();
         ERC1967Proxy identityProxy = new ERC1967Proxy(
             address(identityImpl),
@@ -26,11 +26,9 @@ contract FaivrVerificationRegistryTest is Test {
         );
         identity = FaivrIdentityRegistry(address(identityProxy));
 
-        // Register an agent
         vm.prank(agentOwner);
         agentId = identity.register("ipfs://agent1");
 
-        // Deploy verification registry
         FaivrVerificationRegistry verifierImpl = new FaivrVerificationRegistry();
         ERC1967Proxy verifierProxy = new ERC1967Proxy(
             address(verifierImpl),
@@ -38,13 +36,10 @@ contract FaivrVerificationRegistryTest is Test {
         );
         verifier = FaivrVerificationRegistry(address(verifierProxy));
 
-        // Grant verifier role to bot
         bytes32 verifierRole = verifier.VERIFIER_ROLE();
         vm.prank(admin);
         verifier.grantRole(verifierRole, verifierBot);
     }
-
-    // ── Verify ───────────────────────────────────────────
 
     function test_verify_dns() public {
         vm.prank(verifierBot);
@@ -54,11 +49,9 @@ contract FaivrVerificationRegistryTest is Test {
 
         IFaivrVerificationRegistry.Verification memory v = verifier.getVerification(agentId);
         assertEq(v.domain, "example.com");
-        assertEq(uint(v.method), uint(IFaivrVerificationRegistry.VerificationMethod.DNS));
+        assertEq(uint256(v.method), uint256(IFaivrVerificationRegistry.VerificationMethod.DNS));
         assertTrue(v.verified);
         assertGt(v.tokenId, 0);
-
-        // NFT minted to agent owner
         assertEq(verifier.ownerOf(v.tokenId), agentOwner);
     }
 
@@ -83,20 +76,38 @@ contract FaivrVerificationRegistryTest is Test {
         uint256 tokenId2 = verifier.getVerification(agentId).tokenId;
         vm.stopPrank();
 
-        assertEq(tokenId1, tokenId2, "Re-verification should not mint new NFT");
+        assertEq(tokenId1, tokenId2);
         assertEq(verifier.getVerification(agentId).domain, "new.com");
+        assertEq(verifier.ownerOf(tokenId2), agentOwner);
     }
 
-    // ── Revoke ───────────────────────────────────────────
-
-    function test_revoke() public {
+    function test_verify_resyncsOwnershipAfterAgentTransfer() public {
         vm.prank(verifierBot);
         verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
+        uint256 tokenId = verifier.getVerification(agentId).tokenId;
+
+        vm.prank(agentOwner);
+        identity.transferFrom(agentOwner, newOwner, agentId);
+
+        vm.prank(verifierBot);
+        verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
+
+        assertEq(verifier.getVerification(agentId).tokenId, tokenId);
+        assertEq(verifier.ownerOf(tokenId), newOwner);
+    }
+
+    function test_revoke_burnsVerificationToken() public {
+        vm.prank(verifierBot);
+        verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
+        uint256 tokenId = verifier.getVerification(agentId).tokenId;
 
         vm.prank(verifierBot);
         verifier.revoke(agentId);
 
         assertFalse(verifier.isVerified(agentId));
+        assertEq(verifier.getVerification(agentId).tokenId, 0);
+        vm.expectRevert();
+        verifier.ownerOf(tokenId);
     }
 
     function test_revoke_notVerified_reverts() public {
@@ -105,7 +116,18 @@ contract FaivrVerificationRegistryTest is Test {
         verifier.revoke(agentId);
     }
 
-    // ── Expiry ───────────────────────────────────────────
+    function test_syncVerificationOwnership_afterAgentTransfer() public {
+        vm.prank(verifierBot);
+        verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
+        uint256 tokenId = verifier.getVerification(agentId).tokenId;
+
+        vm.prank(agentOwner);
+        identity.transferFrom(agentOwner, newOwner, agentId);
+
+        verifier.syncVerificationOwnership(agentId);
+
+        assertEq(verifier.ownerOf(tokenId), newOwner);
+    }
 
     function test_expiry() public {
         vm.prank(verifierBot);
@@ -113,7 +135,6 @@ contract FaivrVerificationRegistryTest is Test {
 
         assertTrue(verifier.isVerified(agentId));
 
-        // Warp past expiry
         vm.warp(block.timestamp + 91 days);
         assertFalse(verifier.isVerified(agentId));
     }
@@ -123,8 +144,6 @@ contract FaivrVerificationRegistryTest is Test {
         verifier.setExpiryPeriod(30 days);
         assertEq(verifier.expiryPeriod(), 30 days);
     }
-
-    // ── Soulbound ────────────────────────────────────────
 
     function test_soulbound_transferBlocked() public {
         vm.prank(verifierBot);
@@ -136,15 +155,11 @@ contract FaivrVerificationRegistryTest is Test {
         verifier.transferFrom(agentOwner, rando, tokenId);
     }
 
-    // ── Access Control ───────────────────────────────────
-
     function test_verify_notVerifier_reverts() public {
         vm.prank(rando);
         vm.expectRevert();
         verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
     }
-
-    // ── Token URI ────────────────────────────────────────
 
     function test_tokenURI() public {
         vm.prank(verifierBot);
@@ -152,13 +167,26 @@ contract FaivrVerificationRegistryTest is Test {
         uint256 tokenId = verifier.getVerification(agentId).tokenId;
 
         string memory uri = verifier.tokenURI(tokenId);
-        // Should be a data URI
-        assertTrue(bytes(uri).length > 0);
-        // Basic check it starts with data:
         bytes memory uriBytes = bytes(uri);
+        assertTrue(uriBytes.length > 0);
         assertEq(uriBytes[0], "d");
         assertEq(uriBytes[1], "a");
         assertEq(uriBytes[2], "t");
         assertEq(uriBytes[3], "a");
+    }
+
+    function test_tokenURI_highAgentIdStillWorks() public {
+        uint256 highAgentId;
+        for (uint256 i; i < 150; i++) {
+            vm.prank(agentOwner);
+            highAgentId = identity.register("ipfs://agent-high");
+        }
+
+        vm.prank(verifierBot);
+        verifier.verify(highAgentId, "high.example", IFaivrVerificationRegistry.VerificationMethod.DNS);
+
+        uint256 tokenId = verifier.getVerification(highAgentId).tokenId;
+        string memory uri = verifier.tokenURI(tokenId);
+        assertTrue(bytes(uri).length > 0);
     }
 }

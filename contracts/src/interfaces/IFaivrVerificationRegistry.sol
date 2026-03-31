@@ -21,6 +21,7 @@ interface IFaivrVerificationRegistry {
     event AgentVerified(uint256 indexed agentId, string domain, VerificationMethod method, uint256 tokenId);
     event VerificationRevoked(uint256 indexed agentId);
     event ExpiryPeriodUpdated(uint256 newPeriod);
+    event VerificationOwnershipSynced(uint256 indexed agentId, uint256 indexed tokenId, address indexed newOwner);
 
     // ── Errors ───────────────────────────────────────────
     error AgentDoesNotExist(uint256 agentId);
@@ -31,6 +32,7 @@ interface IFaivrVerificationRegistry {
     // ── Functions ────────────────────────────────────────
     function verify(uint256 agentId, string calldata domain, VerificationMethod method) external;
     function revoke(uint256 agentId) external;
+    function syncVerificationOwnership(uint256 agentId) external;
     function isVerified(uint256 agentId) external view returns (bool);
     function getVerification(uint256 agentId) external view returns (Verification memory);
     function setExpiryPeriod(uint256 newPeriod) external;

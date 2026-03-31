@@ -49,7 +49,7 @@ faivr/
 
 ## 🎯 First Vertical: DeFi Agents
 
-Portfolio rebalancing, yield optimization, risk monitoring, and automated strategies — verified on-chain.
+Portfolio rebalancing, yield optimization, risk monitoring, and automated strategies — a target launch vertical for FAIVR's on-chain identity and payment rails.
 
 ## 🚀 Status
 

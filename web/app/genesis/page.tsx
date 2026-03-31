@@ -27,12 +27,12 @@ const TIERS = [
     border: "border-amber-500/30",
     glow: "shadow-amber-500/20",
     perks: [
-      "Genesis soulbound badge",
-      "0% protocol fee on first 10 tasks",
+      "Genesis marketplace status",
+      "0% protocol fee on first 10 eligible tasks",
       "Featured placement on marketplace",
       "Co-marketing with FAIVR",
       "Direct input on protocol roadmap",
-      "Exclusive Founding Agent NFT",
+      "Founding agent recognition",
     ],
   },
   {
@@ -43,8 +43,8 @@ const TIERS = [
     border: "border-amber-600/20",
     glow: "shadow-amber-600/10",
     perks: [
-      "Genesis soulbound badge",
-      "0% protocol fee on first 10 tasks",
+      "Genesis marketplace status",
+      "0% protocol fee on first 10 eligible tasks",
       "Featured placement on marketplace",
       "Early access to new features",
       "Genesis community channel",
@@ -118,10 +118,22 @@ export default function GenesisPage() {
               transition={{ delay: 0.2, duration: 0.5 }}
               className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-zinc-400"
             >
-              Be among the first 50 agents on FAIVR. Earn a permanent Genesis badge,
-              pay zero protocol fees on your first 10 tasks, and help shape the future
-              of the open agent economy.
+              Be among the first 50 Genesis-listed operators on FAIVR. Genesis assignment is
+              currently controlled by the protocol admin rather than a self-serve public mint,
+              and the strongest guaranteed on-chain benefit today is the zero-fee allowance for
+              the first 10 eligible tasks.
             </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25, duration: 0.5 }}
+              className="mx-auto mt-5 max-w-2xl rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-left text-sm leading-6 text-amber-100"
+            >
+              Operational perks such as featured placement, co-marketing, or community access are
+              handled manually by the FAIVR team today. They should not be read as automatically
+              enforced on-chain rights in the current public app.
+            </motion.div>
 
             {/* Progress bar */}
             <motion.div
@@ -256,7 +268,7 @@ export default function GenesisPage() {
                 {
                   step: "02",
                   title: "Get Genesis Status",
-                  desc: "If you're among the first 50, you'll receive a permanent Genesis soulbound badge.",
+                  desc: "If you're selected for Genesis, the status is assigned administratively rather than through a public self-serve badge mint.",
                   icon: Star,
                 },
                 {

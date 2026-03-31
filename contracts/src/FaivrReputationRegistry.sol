@@ -16,6 +16,9 @@ contract FaivrReputationRegistry is
     AccessControlUpgradeable,
     IFaivrReputationRegistry
 {
+    // ── Roles ────────────────────────────────────────────
+    bytes32 public constant ROUTER_ROLE = keccak256("ROUTER_ROLE");
+
     // ── Structs (internal storage) ───────────────────────
     struct FeedbackEntry {
         int128 value;
@@ -25,11 +28,32 @@ contract FaivrReputationRegistry is
         bool isRevoked;
     }
 
+    /// @dev Parameters for paginated feedback reading (avoids stack-too-deep).
+    struct PaginatedReadParams {
+        uint256 agentId;
+        bool includeRevoked;
+        bytes32 tag1Hash;
+        bytes32 tag2Hash;
+        uint256 offset;
+        uint256 limit;
+    }
+
+    /// @dev Output struct for paginated feedback (avoids stack-too-deep).
+    struct FeedbackArrays {
+        address[] clients;
+        uint64[] feedbackIndexes;
+        int128[] values;
+        uint8[] valueDecimals_;
+        string[] tag1s;
+        string[] tag2s;
+        bool[] revokedStatuses;
+    }
+
     // ── Storage ──────────────────────────────────────────
     address private _identityRegistry;
 
     /// @dev agentId => clientAddress => feedbackIndex => FeedbackEntry
-    /// feedbackIndex is 1-based
+    /// feedbackIndex is 1-based.
     mapping(uint256 => mapping(address => mapping(uint64 => FeedbackEntry))) private _feedback;
 
     /// @dev agentId => clientAddress => lastFeedbackIndex
@@ -58,17 +82,16 @@ contract FaivrReputationRegistry is
         __AccessControl_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ROUTER_ROLE, msg.sender);
         _identityRegistry = identityRegistry_;
     }
 
     // ── Views ────────────────────────────────────────────
-
     function getIdentityRegistry() external view override returns (address) {
         return _identityRegistry;
     }
 
     // ── Core ─────────────────────────────────────────────
-
     function giveFeedback(
         uint256 agentId,
         int128 value,
@@ -79,36 +102,22 @@ contract FaivrReputationRegistry is
         string calldata feedbackURI,
         bytes32 feedbackHash
     ) external override {
-        if (valueDecimals > 18) revert InvalidValueDecimals(valueDecimals);
+        _submitFeedback(msg.sender, agentId, value, valueDecimals, tag1, tag2, endpoint, feedbackURI, feedbackHash);
+    }
 
-        // Verify agent exists
-        _requireAgentExists(agentId);
-
-        // Submitter must not be agent owner or approved operator
-        address agentOwner = IERC721(_identityRegistry).ownerOf(agentId);
-        if (msg.sender == agentOwner) revert SelfFeedbackNotAllowed();
-        if (IERC721(_identityRegistry).isApprovedForAll(agentOwner, msg.sender)) revert SelfFeedbackNotAllowed();
-        if (IERC721(_identityRegistry).getApproved(agentId) == msg.sender) revert SelfFeedbackNotAllowed();
-
-        // Track client
-        if (!_isClient[agentId][msg.sender]) {
-            _clients[agentId].push(msg.sender);
-            _isClient[agentId][msg.sender] = true;
-        }
-
-        // Increment feedback index (1-based)
-        uint64 feedbackIndex = _lastIndex[agentId][msg.sender] + 1;
-        _lastIndex[agentId][msg.sender] = feedbackIndex;
-
-        _feedback[agentId][msg.sender][feedbackIndex] = FeedbackEntry({
-            value: value,
-            valueDecimals: valueDecimals,
-            tag1: tag1,
-            tag2: tag2,
-            isRevoked: false
-        });
-
-        emit NewFeedback(agentId, msg.sender, feedbackIndex, value, valueDecimals, tag1, tag1, tag2, endpoint, feedbackURI, feedbackHash);
+    function giveFeedbackFor(
+        address client,
+        uint256 agentId,
+        int128 value,
+        uint8 valueDecimals,
+        string calldata tag1,
+        string calldata tag2,
+        string calldata endpoint,
+        string calldata feedbackURI,
+        bytes32 feedbackHash
+    ) external override onlyRole(ROUTER_ROLE) {
+        if (client == address(0)) revert ZeroAddress();
+        _submitFeedback(client, agentId, value, valueDecimals, tag1, tag2, endpoint, feedbackURI, feedbackHash);
     }
 
     function revokeFeedback(uint256 agentId, uint64 feedbackIndex) external override {
@@ -133,7 +142,6 @@ contract FaivrReputationRegistry is
             revert FeedbackNotFound(agentId, clientAddress, feedbackIndex);
         }
 
-        // H-03: Only agent owner/operator or the feedback author may respond
         address agentOwner = IERC721(_identityRegistry).ownerOf(agentId);
         bool isAgentOwnerOrOperator = (msg.sender == agentOwner)
             || IERC721(_identityRegistry).isApprovedForAll(agentOwner, msg.sender)
@@ -147,7 +155,6 @@ contract FaivrReputationRegistry is
     }
 
     // ── Read ─────────────────────────────────────────────
-
     function getSummary(
         uint256 agentId,
         address[] calldata clientAddresses,
@@ -168,7 +175,7 @@ contract FaivrReputationRegistry is
                 if (entry.isRevoked) continue;
                 if (tag1Hash != bytes32(0) && keccak256(bytes(entry.tag1)) != tag1Hash) continue;
                 if (tag2Hash != bytes32(0) && keccak256(bytes(entry.tag2)) != tag2Hash) continue;
-                total += int256(entry.value);
+                total += _normalizeTo18(entry.value, entry.valueDecimals);
                 count++;
             }
         }
@@ -177,7 +184,7 @@ contract FaivrReputationRegistry is
             require(avg >= type(int128).min && avg <= type(int128).max, "SafeCast: int128 overflow");
             summaryValue = int128(avg);
         }
-        summaryValueDecimals = 0; // average inherits decimals from input values
+        summaryValueDecimals = 18;
     }
 
     function readFeedback(
@@ -210,7 +217,6 @@ contract FaivrReputationRegistry is
         bytes32 tag1Hash = bytes(tag1).length > 0 ? keccak256(bytes(tag1)) : bytes32(0);
         bytes32 tag2Hash = bytes(tag2).length > 0 ? keccak256(bytes(tag2)) : bytes32(0);
 
-        // Use provided clients or all clients
         address[] memory searchClients;
         if (clientAddresses.length > 0) {
             searchClients = clientAddresses;
@@ -218,7 +224,6 @@ contract FaivrReputationRegistry is
             searchClients = _clients[agentId];
         }
 
-        // First pass: count
         uint256 totalCount;
         for (uint256 i; i < searchClients.length; i++) {
             uint64 lastIdx = _lastIndex[agentId][searchClients[i]];
@@ -231,7 +236,6 @@ contract FaivrReputationRegistry is
             }
         }
 
-        // Allocate
         clients = new address[](totalCount);
         feedbackIndexes = new uint64[](totalCount);
         values = new int128[](totalCount);
@@ -240,7 +244,6 @@ contract FaivrReputationRegistry is
         tag2s = new string[](totalCount);
         revokedStatuses = new bool[](totalCount);
 
-        // Second pass: fill
         uint256 idx;
         for (uint256 i; i < searchClients.length; i++) {
             uint64 lastIdx = _lastIndex[agentId][searchClients[i]];
@@ -291,7 +294,7 @@ contract FaivrReputationRegistry is
                 if (p.tag1Hash != bytes32(0) && keccak256(bytes(entry.tag1)) != p.tag1Hash) continue;
                 if (p.tag2Hash != bytes32(0) && keccak256(bytes(entry.tag2)) != p.tag2Hash) continue;
                 if (seen >= p.offset) {
-                    total += int256(entry.value);
+                    total += _normalizeTo18(entry.value, entry.valueDecimals);
                     count++;
                     collected++;
                 }
@@ -303,17 +306,7 @@ contract FaivrReputationRegistry is
             require(avg >= type(int128).min && avg <= type(int128).max, "SafeCast: int128 overflow");
             summaryValue = int128(avg);
         }
-        summaryValueDecimals = 0;
-    }
-
-    /// @dev Parameters for paginated feedback reading (avoids stack-too-deep)
-    struct PaginatedReadParams {
-        uint256 agentId;
-        bool includeRevoked;
-        bytes32 tag1Hash;
-        bytes32 tag2Hash;
-        uint256 offset;
-        uint256 limit;
+        summaryValueDecimals = 18;
     }
 
     function readAllFeedbackPaginated(
@@ -349,7 +342,6 @@ contract FaivrReputationRegistry is
             searchClients = _clients[agentId];
         }
 
-        // Allocate max-size arrays in struct
         FeedbackArrays memory out;
         out.clients = new address[](limit);
         out.feedbackIndexes = new uint64[](limit);
@@ -369,7 +361,6 @@ contract FaivrReputationRegistry is
         tag2s = out.tag2s;
         revokedStatuses = out.revokedStatuses;
 
-        // Trim arrays to actual size
         assembly {
             mstore(clients, collected)
             mstore(feedbackIndexes, collected)
@@ -381,15 +372,67 @@ contract FaivrReputationRegistry is
         }
     }
 
-    /// @dev Output struct for paginated feedback (avoids stack-too-deep)
-    struct FeedbackArrays {
-        address[] clients;
-        uint64[] feedbackIndexes;
-        int128[] values;
-        uint8[] valueDecimals_;
-        string[] tag1s;
-        string[] tag2s;
-        bool[] revokedStatuses;
+    function getResponseCount(
+        uint256 agentId,
+        address clientAddress,
+        uint64 feedbackIndex,
+        address[] calldata responders
+    ) external view override returns (uint64 count) {
+        if (responders.length == 0) {
+            return 0;
+        }
+        for (uint256 i; i < responders.length; i++) {
+            count += _responseCounts[agentId][clientAddress][feedbackIndex][responders[i]];
+        }
+    }
+
+    function getClients(uint256 agentId) external view override returns (address[] memory) {
+        return _clients[agentId];
+    }
+
+    function getLastIndex(uint256 agentId, address clientAddress) external view override returns (uint64) {
+        return _lastIndex[agentId][clientAddress];
+    }
+
+    // ── Internal ─────────────────────────────────────────
+    function _submitFeedback(
+        address client,
+        uint256 agentId,
+        int128 value,
+        uint8 valueDecimals,
+        string calldata tag1,
+        string calldata tag2,
+        string calldata endpoint,
+        string calldata feedbackURI,
+        bytes32 feedbackHash
+    ) private {
+        if (valueDecimals > 18) revert InvalidValueDecimals(valueDecimals);
+
+        _requireAgentExists(agentId);
+
+        address agentOwner = IERC721(_identityRegistry).ownerOf(agentId);
+        if (client == agentOwner) revert SelfFeedbackNotAllowed();
+        if (IERC721(_identityRegistry).isApprovedForAll(agentOwner, client)) revert SelfFeedbackNotAllowed();
+        if (IERC721(_identityRegistry).getApproved(agentId) == client) revert SelfFeedbackNotAllowed();
+
+        if (!_isClient[agentId][client]) {
+            _clients[agentId].push(client);
+            _isClient[agentId][client] = true;
+        }
+
+        uint64 feedbackIndex = _lastIndex[agentId][client] + 1;
+        _lastIndex[agentId][client] = feedbackIndex;
+
+        _feedback[agentId][client][feedbackIndex] = FeedbackEntry({
+            value: value,
+            valueDecimals: valueDecimals,
+            tag1: tag1,
+            tag2: tag2,
+            isRevoked: false
+        });
+
+        // ERC-8004 carries tag1 twice: once indexed for filtering and once in cleartext.
+        emit NewFeedback(agentId, client, feedbackIndex, value, valueDecimals, tag1, tag1, tag2, endpoint, feedbackURI, feedbackHash);
     }
 
     function _fillPaginatedFeedback(
@@ -420,33 +463,15 @@ contract FaivrReputationRegistry is
         }
     }
 
-    function getResponseCount(
-        uint256 agentId,
-        address clientAddress,
-        uint64 feedbackIndex,
-        address[] calldata responders
-    ) external view override returns (uint64 count) {
-        if (responders.length == 0) {
-            // No filter — not feasible to enumerate all responders, return 0
-            return 0;
+    function _normalizeTo18(int128 value, uint8 valueDecimals) private pure returns (int256) {
+        int256 normalized = int256(value);
+        if (valueDecimals < 18) {
+            normalized *= int256(10 ** uint256(18 - valueDecimals));
         }
-        for (uint256 i; i < responders.length; i++) {
-            count += _responseCounts[agentId][clientAddress][feedbackIndex][responders[i]];
-        }
+        return normalized;
     }
-
-    function getClients(uint256 agentId) external view override returns (address[] memory) {
-        return _clients[agentId];
-    }
-
-    function getLastIndex(uint256 agentId, address clientAddress) external view override returns (uint64) {
-        return _lastIndex[agentId][clientAddress];
-    }
-
-    // ── Internal ─────────────────────────────────────────
 
     function _requireAgentExists(uint256 agentId) internal view {
-        // Check if agent exists by calling ownerOf — will revert if not minted
         IERC721(_identityRegistry).ownerOf(agentId);
     }
 

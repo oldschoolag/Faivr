@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Globe, FileText, Twitter, CheckCircle, Loader2, Copy, Check } from "lucide-react";
+import { X, Globe, FileText, CheckCircle, Loader2, Copy, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { VerifiedBadge } from "./VerifiedBadge";
 
-type Method = "dns" | "file" | "twitter";
+type Method = "dns" | "file";
 type Step = "choose" | "challenge" | "checking" | "success" | "error";
 
 interface VerifyAgentModalProps {
@@ -20,10 +19,9 @@ interface VerifyAgentModalProps {
 const methods: { id: Method; label: string; icon: typeof Globe; description: string }[] = [
   { id: "dns", label: "DNS TXT Record", icon: Globe, description: "Add a TXT record to your domain's DNS" },
   { id: "file", label: ".well-known File", icon: FileText, description: "Host a verification file on your domain" },
-  { id: "twitter", label: "Twitter / X", icon: Twitter, description: "Post a verification tweet from your account" },
 ];
 
-export function VerifyAgentModal({ agentId, agentName, isOpen, onClose, onVerified }: VerifyAgentModalProps) {
+export function VerifyAgentModal({ agentId, agentName, isOpen, onClose }: VerifyAgentModalProps) {
   const [step, setStep] = useState<Step>("choose");
   const [method, setMethod] = useState<Method>("dns");
   const [domain, setDomain] = useState("");
@@ -85,7 +83,6 @@ export function VerifyAgentModal({ agentId, agentName, isOpen, onClose, onVerifi
 
       if (data.verified) {
         setStep("success");
-        onVerified?.();
       } else {
         setError(data.message || "Verification not detected yet. Please try again.");
         setStep("challenge");
@@ -120,17 +117,21 @@ export function VerifyAgentModal({ agentId, agentName, isOpen, onClose, onVerifi
           onClick={(e) => e.stopPropagation()}
           className="relative mx-4 w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl"
         >
-          {/* Header */}
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">
-              Verify {agentName}
-            </h2>
+            <h2 className="text-lg font-semibold text-white">Check domain control for {agentName}</h2>
             <button onClick={handleClose} className="rounded-lg p-1 text-zinc-400 hover:bg-white/5 hover:text-white">
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          {/* Step: Choose Method */}
+          <div className="mb-4 flex gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-100">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+            <p className="leading-6">
+              Preview only: this flow checks whether you control a domain. It does <span className="font-semibold">not</span>
+              {" "}mint a badge or create an on-chain verification record yet.
+            </p>
+          </div>
+
           {step === "choose" && (
             <div className="space-y-4">
               <div>
@@ -139,13 +140,16 @@ export function VerifyAgentModal({ agentId, agentName, isOpen, onClose, onVerifi
                   type="text"
                   placeholder="example.com"
                   value={domain}
-                  onChange={(e) => { setDomain(e.target.value); setError(""); }}
+                  onChange={(e) => {
+                    setDomain(e.target.value);
+                    setError("");
+                  }}
                   className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-300">Verification Method</label>
+                <label className="mb-2 block text-sm font-medium text-zinc-300">Challenge Method</label>
                 <div className="space-y-2">
                   {methods.map((m) => (
                     <button
@@ -177,7 +181,6 @@ export function VerifyAgentModal({ agentId, agentName, isOpen, onClose, onVerifi
             </div>
           )}
 
-          {/* Step: Show Challenge */}
           {step === "challenge" && (
             <div className="space-y-4">
               <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
@@ -194,6 +197,10 @@ export function VerifyAgentModal({ agentId, agentName, isOpen, onClose, onVerifi
                 </div>
               </div>
 
+              <p className="text-xs leading-6 text-zinc-500">
+                Success here only means the challenge was detected. Manual or future automated contract submission is still required for any real verification badge.
+              </p>
+
               {error && <p className="text-sm text-red-400">{error}</p>}
 
               <div className="flex gap-3">
@@ -201,30 +208,25 @@ export function VerifyAgentModal({ agentId, agentName, isOpen, onClose, onVerifi
                   Back
                 </Button>
                 <Button onClick={checkVerification} className="flex-1">
-                  Check Verification
+                  Check Challenge
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Step: Checking */}
           {step === "checking" && (
             <div className="flex flex-col items-center py-8">
               <Loader2 className="mb-4 h-8 w-8 animate-spin text-emerald-400" />
-              <p className="text-sm text-zinc-400">Checking verification...</p>
+              <p className="text-sm text-zinc-400">Checking challenge...</p>
             </div>
           )}
 
-          {/* Step: Success */}
           {step === "success" && (
-            <div className="flex flex-col items-center py-8">
-              <div className="mb-4 flex items-center gap-2">
-                <CheckCircle className="h-10 w-10 text-emerald-400" />
-                <VerifiedBadge size="lg" />
-              </div>
-              <h3 className="mb-2 text-lg font-semibold text-white">Agent Verified!</h3>
-              <p className="mb-6 text-center text-sm text-zinc-400">
-                {agentName} is now verified for {domain}. A soulbound verification NFT will be minted to your wallet.
+            <div className="flex flex-col items-center py-8 text-center">
+              <CheckCircle className="mb-4 h-10 w-10 text-emerald-400" />
+              <h3 className="mb-2 text-lg font-semibold text-white">Challenge confirmed</h3>
+              <p className="mb-6 text-sm leading-7 text-zinc-400">
+                We detected the {method === "dns" ? "DNS" : "file"} challenge for {domain}. This preview confirms domain control only. No badge was minted and no on-chain verification record was created.
               </p>
               <Button onClick={handleClose}>Done</Button>
             </div>

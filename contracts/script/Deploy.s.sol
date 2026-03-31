@@ -36,13 +36,13 @@ contract Deploy is Script {
 
         ERC1967Proxy reputationProxy = new ERC1967Proxy(
             address(reputationImpl),
-            abi.encodeCall(FaivrReputationRegistry.initialize, (admin))
+            abi.encodeCall(FaivrReputationRegistry.initialize, (address(identityProxy)))
         );
         console.log("ReputationRegistry proxy:", address(reputationProxy));
 
         ERC1967Proxy validationProxy = new ERC1967Proxy(
             address(validationImpl),
-            abi.encodeCall(FaivrValidationRegistry.initialize, (admin))
+            abi.encodeCall(FaivrValidationRegistry.initialize, (address(identityProxy)))
         );
         console.log("ValidationRegistry proxy:", address(validationProxy));
 
@@ -69,9 +69,33 @@ contract Deploy is Script {
         );
         console.log("Router proxy:", address(routerProxy));
 
+        // ── 3. Optional router wiring ────────────────────
+        FaivrIdentityRegistry identity = FaivrIdentityRegistry(address(identityProxy));
+        FaivrReputationRegistry reputation = FaivrReputationRegistry(address(reputationProxy));
+        FaivrFeeModule feeModule = FaivrFeeModule(address(feeProxy));
+        FaivrRouter router = FaivrRouter(address(routerProxy));
+
+        try identity.grantRole(identity.REGISTRAR_ROLE(), address(router)) {
+            console.log("Granted REGISTRAR_ROLE to router");
+        } catch {
+            console.log("WARNING: could not grant REGISTRAR_ROLE to router; run grantRole from ADMIN if router registration flows are needed.");
+        }
+
+        try feeModule.grantRole(feeModule.ROUTER_ROLE(), address(router)) {
+            console.log("Granted ROUTER_ROLE to router on FeeModule");
+        } catch {
+            console.log("WARNING: could not grant ROUTER_ROLE to router on FeeModule; run grantRole from ADMIN if router funding flows are needed.");
+        }
+
+        try reputation.grantRole(reputation.ROUTER_ROLE(), address(router)) {
+            console.log("Granted ROUTER_ROLE to router on ReputationRegistry");
+        } catch {
+            console.log("WARNING: could not grant ROUTER_ROLE to router on ReputationRegistry; run grantRole from the current reputation admin before using settleAndGiveFeedback.");
+        }
+
         vm.stopBroadcast();
 
-        // ── 3. Summary ──────────────────────────────────
+        // ── 4. Summary ───────────────────────────────────
         console.log("\n=== FAIVR Deployment Complete ===");
         console.log("Admin:              ", admin);
         console.log("Protocol Wallet:    ", protocolWallet);
