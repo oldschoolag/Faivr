@@ -214,6 +214,25 @@ contract FaivrReputationRegistryTest is Test {
         assertEq(summaryValue, 85); // (80+90)/2
     }
 
+    function test_getSummary_normalizesMixedValueDecimals() public {
+        _recordSettlement(client1);
+        _recordSettlement(client2);
+
+        vm.prank(client1);
+        reputation.giveFeedback(agentId, 1, 0, "quality", "", "", "", bytes32(0));
+        vm.prank(client2);
+        reputation.giveFeedback(agentId, 15, 1, "quality", "", "", "", bytes32(0));
+
+        address[] memory clients = new address[](2);
+        clients[0] = client1;
+        clients[1] = client2;
+
+        (uint64 count, int128 summaryValue, uint8 summaryValueDecimals) = reputation.getSummary(agentId, clients, "", "");
+        assertEq(count, 2);
+        assertEq(summaryValue, 125);
+        assertEq(summaryValueDecimals, 2);
+    }
+
     function test_getSummary_withTagFilter() public {
         _recordSettlement(client1);
         _recordSettlement(client1);

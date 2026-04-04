@@ -22,6 +22,19 @@ contract MockUSDC is ERC20 {
     }
 }
 
+contract ZeroRejectERC20 is ERC20 {
+    constructor() ERC20("Zero Reject Token", "ZRT") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        require(amount > 0, "ZERO_TRANSFER_BLOCKED");
+        return super.transfer(to, amount);
+    }
+}
+
 contract FaivrFeeModuleLegacy is Initializable, UUPSUpgradeable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable {
     bytes32 public constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -265,6 +278,24 @@ contract FaivrFeeModuleTest is Test {
         assertEq(usdc.balanceOf(agentOwner), agentPayout);
         assertEq(usdc.balanceOf(protocolWallet), protFee);
         assertEq(usdc.balanceOf(devWallet), devFee);
+    }
+
+    function test_settleTask_ERC20_skipsZeroAmountFeeTransfers() public {
+        ZeroRejectERC20 zeroReject = new ZeroRejectERC20();
+        zeroReject.mint(alice, 1);
+
+        vm.prank(alice);
+        zeroReject.approve(address(feeModule), 1);
+
+        vm.prank(alice);
+        uint256 taskId = feeModule.fundTask(agentId, address(zeroReject), 1, 1 days);
+
+        vm.prank(alice);
+        feeModule.settleTask(taskId);
+
+        assertEq(zeroReject.balanceOf(agentOwner), 1);
+        assertEq(zeroReject.balanceOf(protocolWallet), 0);
+        assertEq(zeroReject.balanceOf(devWallet), 0);
     }
 
     function test_settleTask_recordsFeedbackCreditForDirectReview() public {

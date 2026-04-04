@@ -19,6 +19,7 @@ contract FaivrReputationRegistry is
     // ── Roles ────────────────────────────────────────────
     bytes32 public constant FEEDBACK_ROUTER_ROLE = keccak256("FEEDBACK_ROUTER_ROLE");
     bytes32 public constant SETTLEMENT_SOURCE_ROLE = keccak256("SETTLEMENT_SOURCE_ROLE");
+    uint8 private constant SUMMARY_DECIMALS = 18;
 
     // ── Structs (internal storage) ───────────────────────
     struct FeedbackEntry {
@@ -181,16 +182,12 @@ contract FaivrReputationRegistry is
                 if (entry.isRevoked) continue;
                 if (tag1Hash != bytes32(0) && keccak256(bytes(entry.tag1)) != tag1Hash) continue;
                 if (tag2Hash != bytes32(0) && keccak256(bytes(entry.tag2)) != tag2Hash) continue;
-                total += int256(entry.value);
+                total += _normalizeSummaryValue(entry.value, entry.valueDecimals);
                 count++;
             }
         }
-        if (count > 0) {
-            int256 avg = total / int256(uint256(count));
-            require(avg >= type(int128).min && avg <= type(int128).max, "SafeCast: int128 overflow");
-            summaryValue = int128(avg);
-        }
-        summaryValueDecimals = 0; // average inherits decimals from input values
+
+        (summaryValue, summaryValueDecimals) = _finalizeSummary(total, count);
     }
 
     function readFeedback(
@@ -304,19 +301,15 @@ contract FaivrReputationRegistry is
                 if (p.tag1Hash != bytes32(0) && keccak256(bytes(entry.tag1)) != p.tag1Hash) continue;
                 if (p.tag2Hash != bytes32(0) && keccak256(bytes(entry.tag2)) != p.tag2Hash) continue;
                 if (seen >= p.offset) {
-                    total += int256(entry.value);
+                    total += _normalizeSummaryValue(entry.value, entry.valueDecimals);
                     count++;
                     collected++;
                 }
                 seen++;
             }
         }
-        if (count > 0) {
-            int256 avg = total / int256(uint256(count));
-            require(avg >= type(int128).min && avg <= type(int128).max, "SafeCast: int128 overflow");
-            summaryValue = int128(avg);
-        }
-        summaryValueDecimals = 0;
+
+        (summaryValue, summaryValueDecimals) = _finalizeSummary(total, count);
     }
 
     /// @dev Parameters for paginated feedback reading (avoids stack-too-deep)
@@ -457,6 +450,26 @@ contract FaivrReputationRegistry is
     }
 
     // ── Internal ─────────────────────────────────────────
+
+    function _normalizeSummaryValue(int128 value, uint8 valueDecimals) private pure returns (int256) {
+        return int256(value) * int256(10 ** uint256(SUMMARY_DECIMALS - valueDecimals));
+    }
+
+    function _finalizeSummary(int256 total, uint64 count) private pure returns (int128 summaryValue, uint8 summaryValueDecimals) {
+        if (count == 0) {
+            return (0, 0);
+        }
+
+        int256 avg = total / int256(uint256(count));
+        summaryValueDecimals = SUMMARY_DECIMALS;
+        while (summaryValueDecimals > 0 && avg % 10 == 0) {
+            avg /= 10;
+            summaryValueDecimals--;
+        }
+
+        require(avg >= type(int128).min && avg <= type(int128).max, "SafeCast: int128 overflow");
+        summaryValue = int128(avg);
+    }
 
     function _giveFeedback(
         address clientAddress,

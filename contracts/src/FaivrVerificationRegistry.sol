@@ -86,8 +86,15 @@ contract FaivrVerificationRegistry is
         Verification storage v = _verifications[agentId];
         if (!v.verified) revert VerificationNotFound(agentId);
 
+        uint256 tokenId = v.tokenId;
         v.verified = false;
         v.expiresAt = 0;
+        v.tokenId = 0;
+
+        if (tokenId != 0 && _ownerOf(tokenId) != address(0)) {
+            _burn(tokenId);
+            _tokenAgents[tokenId] = 0;
+        }
 
         emit VerificationRevoked(agentId);
     }
@@ -104,16 +111,16 @@ contract FaivrVerificationRegistry is
 
     /// @notice Check if an agent is currently verified (not expired and still bound to the current owner).
     function isVerified(uint256 agentId) external view returns (bool) {
-        Verification storage v = _verifications[agentId];
-        return v.verified && block.timestamp <= v.expiresAt && _verificationBoundToCurrentOwner(agentId, v.tokenId);
+        (bool active,) = _verificationState(agentId, _verifications[agentId]);
+        return active;
     }
 
     /// @notice Get full verification record.
     function getVerification(uint256 agentId) external view returns (Verification memory verification) {
         verification = _verifications[agentId];
-        if (verification.verified && !_verificationBoundToCurrentOwner(agentId, verification.tokenId)) {
+        (bool active,) = _verificationState(agentId, _verifications[agentId]);
+        if (!active) {
             verification.verified = false;
-            verification.expiresAt = 0;
         }
     }
 
@@ -154,17 +161,23 @@ contract FaivrVerificationRegistry is
         string memory domain = v.domain;
         string memory method = _methodToString(v.method);
         uint256 verifiedAt = v.verifiedAt;
+        (bool active, string memory status) = _verificationState(agentId, v);
+        string memory namePrefix = active ? "FAIVR Verified Agent #" : "FAIVR Verification Record #";
+        string memory descriptionPrefix = active
+            ? "Current verification proof for agent #"
+            : "Historical verification record for agent #";
 
-        string memory svg = _generateSVG(agentId, domain, method);
+        string memory svg = _generateSVG(agentId, domain, method, status, active);
         string memory json = string(abi.encodePacked(
-            '{"name":"FAIVR Verified Agent #', agentId.toString(),
-            '","description":"Soulbound verification proof for agent #', agentId.toString(),
-            ' on FAIVR. Domain: ', domain, ' | Method: ', method, '",',
+            '{"name":"', namePrefix, agentId.toString(),
+            '","description":"', descriptionPrefix, agentId.toString(),
+            ' on FAIVR. Status: ', status, ' | Domain: ', domain, ' | Method: ', method, '",',
             '"image":"data:image/svg+xml;base64,', Base64.encode(bytes(svg)), '",',
             '"attributes":[',
                 '{"trait_type":"Agent ID","value":"', agentId.toString(), '"},',
                 '{"trait_type":"Domain","value":"', domain, '"},',
                 '{"trait_type":"Method","value":"', method, '"},',
+                '{"trait_type":"Status","value":"', status, '"},',
                 '{"trait_type":"Verified At","display_type":"date","value":', verifiedAt.toString(), '},',
                 '{"trait_type":"Soulbound","value":"true"}',
             ']}'
@@ -179,24 +192,30 @@ contract FaivrVerificationRegistry is
         return "twitter";
     }
 
-    function _generateSVG(uint256 agentId, string memory domain, string memory method)
+    function _generateSVG(uint256 agentId, string memory domain, string memory method, string memory status, bool active)
         internal
         pure
         returns (string memory)
     {
+        string memory accentStart = active ? "#10b981" : "#f59e0b";
+        string memory accentEnd = active ? "#6366f1" : "#ef4444";
+        string memory icon = active ? "&#x2713;" : "&#x26A0;";
+        string memory title = active ? "FAIVR VERIFIED" : "FAIVR VERIFICATION";
+
         return string(abi.encodePacked(
             '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">',
             '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">',
             '<stop offset="0%" stop-color="#0f0f23"/><stop offset="100%" stop-color="#1a1a3e"/></linearGradient>',
             '<linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">',
-            '<stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#6366f1"/></linearGradient></defs>',
+            '<stop offset="0%" stop-color="', accentStart, '"/><stop offset="100%" stop-color="', accentEnd, '"/></linearGradient></defs>',
             '<rect width="400" height="400" rx="20" fill="url(#bg)"/>',
             '<rect x="20" y="20" width="360" height="360" rx="12" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.5"/>',
-            '<text x="200" y="100" text-anchor="middle" fill="#10b981" font-family="monospace" font-size="48">&#x2713;</text>',
-            '<text x="200" y="150" text-anchor="middle" fill="white" font-family="sans-serif" font-size="20" font-weight="bold">FAIVR VERIFIED</text>',
+            '<text x="200" y="100" text-anchor="middle" fill="', accentStart, '" font-family="monospace" font-size="48">', icon, '</text>',
+            '<text x="200" y="150" text-anchor="middle" fill="white" font-family="sans-serif" font-size="20" font-weight="bold">', title, '</text>',
             '<text x="200" y="200" text-anchor="middle" fill="#a1a1aa" font-family="monospace" font-size="14">Agent #', agentId.toString(), '</text>',
-            '<text x="200" y="240" text-anchor="middle" fill="#d4d4d8" font-family="monospace" font-size="12">', domain, '</text>',
-            '<text x="200" y="270" text-anchor="middle" fill="#71717a" font-family="monospace" font-size="11">method: ', method, '</text>',
+            '<text x="200" y="232" text-anchor="middle" fill="#d4d4d8" font-family="monospace" font-size="12">', domain, '</text>',
+            '<text x="200" y="262" text-anchor="middle" fill="#71717a" font-family="monospace" font-size="11">method: ', method, '</text>',
+            '<text x="200" y="286" text-anchor="middle" fill="#71717a" font-family="monospace" font-size="11">status: ', status, '</text>',
             '<text x="200" y="360" text-anchor="middle" fill="#3f3f46" font-family="sans-serif" font-size="10">SOULBOUND \xE2\x80\xA2 NON-TRANSFERABLE</text>',
             '</svg>'
         ));
@@ -243,6 +262,23 @@ contract FaivrVerificationRegistry is
         } catch {
             return false;
         }
+    }
+
+    function _verificationState(uint256 agentId, Verification storage v)
+        internal
+        view
+        returns (bool active, string memory status)
+    {
+        if (!v.verified) {
+            return (false, "revoked");
+        }
+        if (block.timestamp > v.expiresAt) {
+            return (false, "expired");
+        }
+        if (!_verificationBoundToCurrentOwner(agentId, v.tokenId)) {
+            return (false, "stale-owner");
+        }
+        return (true, "active");
     }
 
     function _findAgentIdByTokenId(uint256 tokenId) internal view returns (uint256 agentId) {

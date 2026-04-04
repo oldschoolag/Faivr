@@ -304,9 +304,9 @@ contract FaivrFeeModule is
             _sendETH(_protocolWallet, protocolFee);
             _sendETH(_devWallet, devFee);
         } else {
-            IERC20(task.token).safeTransfer(agentOwner, agentPayout);
-            IERC20(task.token).safeTransfer(_protocolWallet, protocolFee);
-            IERC20(task.token).safeTransfer(_devWallet, devFee);
+            if (agentPayout > 0) IERC20(task.token).safeTransfer(agentOwner, agentPayout);
+            if (protocolFee > 0) IERC20(task.token).safeTransfer(_protocolWallet, protocolFee);
+            if (devFee > 0) IERC20(task.token).safeTransfer(_devWallet, devFee);
         }
 
         emit TaskSettled(taskId, task.agentId, agentOwner, agentPayout, protocolFee, devFee);

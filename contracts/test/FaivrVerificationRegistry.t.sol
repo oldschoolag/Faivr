@@ -168,6 +168,25 @@ contract FaivrVerificationRegistryTest is Test {
         assertFalse(verifier.isVerified(agentId));
     }
 
+    function test_revoke_burnsVerificationNFT() public {
+        vm.prank(verifierBot);
+        verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
+        uint256 tokenId = verifier.getVerification(agentId).tokenId;
+
+        vm.prank(verifierBot);
+        verifier.revoke(agentId);
+
+        IFaivrVerificationRegistry.Verification memory v = verifier.getVerification(agentId);
+        assertFalse(v.verified);
+        assertEq(v.tokenId, 0);
+
+        vm.expectRevert();
+        verifier.ownerOf(tokenId);
+
+        vm.expectRevert();
+        verifier.tokenURI(tokenId);
+    }
+
     function test_revoke_notVerified_reverts() public {
         vm.prank(verifierBot);
         vm.expectRevert(abi.encodeWithSelector(IFaivrVerificationRegistry.VerificationNotFound.selector, agentId));
@@ -187,6 +206,28 @@ contract FaivrVerificationRegistryTest is Test {
         assertFalse(verifier.isVerified(agentId));
     }
 
+    function test_getVerification_marksExpiredVerificationInactive() public {
+        vm.prank(verifierBot);
+        verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
+
+        vm.warp(block.timestamp + 91 days);
+
+        IFaivrVerificationRegistry.Verification memory v = verifier.getVerification(agentId);
+        assertFalse(v.verified);
+    }
+
+    function test_tokenURI_changesWhenVerificationExpires() public {
+        vm.prank(verifierBot);
+        verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
+        uint256 tokenId = verifier.getVerification(agentId).tokenId;
+        string memory activeURI = verifier.tokenURI(tokenId);
+
+        vm.warp(block.timestamp + 91 days);
+
+        string memory expiredURI = verifier.tokenURI(tokenId);
+        assertTrue(keccak256(bytes(activeURI)) != keccak256(bytes(expiredURI)));
+    }
+
     function test_setExpiryPeriod() public {
         vm.prank(admin);
         verifier.setExpiryPeriod(30 days);
@@ -203,6 +244,20 @@ contract FaivrVerificationRegistryTest is Test {
         vm.prank(agentOwner);
         vm.expectRevert(IFaivrVerificationRegistry.SoulboundTransferBlocked.selector);
         verifier.transferFrom(agentOwner, rando, tokenId);
+    }
+
+    function test_tokenURI_changesWhenOwnerChangesWithoutSync() public {
+        vm.prank(verifierBot);
+        verifier.verify(agentId, "example.com", IFaivrVerificationRegistry.VerificationMethod.DNS);
+        uint256 tokenId = verifier.getVerification(agentId).tokenId;
+        string memory activeURI = verifier.tokenURI(tokenId);
+
+        vm.prank(agentOwner);
+        identity.transferFrom(agentOwner, rando, agentId);
+
+        string memory staleURI = verifier.tokenURI(tokenId);
+        assertTrue(keccak256(bytes(activeURI)) != keccak256(bytes(staleURI)));
+        assertFalse(verifier.getVerification(agentId).verified);
     }
 
     function test_transferInvalidatesVerificationUntilSynced() public {
