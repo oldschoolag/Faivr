@@ -33,13 +33,9 @@ contract Deploy is Script {
         _run(admin, protocolWallet, devWallet, broadcaster, adminPrivateKey);
     }
 
-    function run(
-        address admin,
-        address protocolWallet,
-        address devWallet,
-        address broadcaster,
-        uint256 adminPrivateKey
-    ) external {
+    function run(address admin, address protocolWallet, address devWallet, address broadcaster, uint256 adminPrivateKey)
+        external
+    {
         _run(admin, protocolWallet, devWallet, broadcaster, adminPrivateKey);
     }
 
@@ -96,11 +92,10 @@ contract Deploy is Script {
         vm.startBroadcast(admin);
     }
 
-    function _deploy(
-        address admin,
-        address protocolWallet,
-        address devWallet
-    ) internal returns (Deployment memory deployment) {
+    function _deploy(address admin, address protocolWallet, address devWallet)
+        internal
+        returns (Deployment memory deployment)
+    {
         // ── 1. Deploy implementations ────────────────────
         FaivrIdentityRegistry identityImpl = new FaivrIdentityRegistry();
         FaivrReputationRegistry reputationImpl = new FaivrReputationRegistry();
@@ -109,44 +104,32 @@ contract Deploy is Script {
         FaivrRouter routerImpl = new FaivrRouter();
 
         // ── 2. Deploy proxies + initialize ───────────────
-        ERC1967Proxy identityProxy = new ERC1967Proxy(
-            address(identityImpl),
-            abi.encodeCall(FaivrIdentityRegistry.initialize, (admin))
-        );
+        ERC1967Proxy identityProxy =
+            new ERC1967Proxy(address(identityImpl), abi.encodeCall(FaivrIdentityRegistry.initialize, (admin)));
         console.log("IdentityRegistry proxy:", address(identityProxy));
 
         ERC1967Proxy reputationProxy = new ERC1967Proxy(
-            address(reputationImpl),
-            abi.encodeCall(FaivrReputationRegistry.initialize, (admin, address(identityProxy)))
+            address(reputationImpl), abi.encodeCall(FaivrReputationRegistry.initialize, (admin, address(identityProxy)))
         );
         console.log("ReputationRegistry proxy:", address(reputationProxy));
 
         ERC1967Proxy validationProxy = new ERC1967Proxy(
-            address(validationImpl),
-            abi.encodeCall(FaivrValidationRegistry.initialize, (admin, address(identityProxy)))
+            address(validationImpl), abi.encodeCall(FaivrValidationRegistry.initialize, (admin, address(identityProxy)))
         );
         console.log("ValidationRegistry proxy:", address(validationProxy));
 
         ERC1967Proxy feeProxy = new ERC1967Proxy(
             address(feeImpl),
-            abi.encodeCall(FaivrFeeModule.initialize, (
-                admin,
-                protocolWallet,
-                devWallet,
-                address(identityProxy)
-            ))
+            abi.encodeCall(FaivrFeeModule.initialize, (admin, protocolWallet, devWallet, address(identityProxy)))
         );
         console.log("FeeModule proxy:", address(feeProxy));
 
         ERC1967Proxy routerProxy = new ERC1967Proxy(
             address(routerImpl),
-            abi.encodeCall(FaivrRouter.initialize, (
-                admin,
-                address(identityProxy),
-                address(reputationProxy),
-                address(validationProxy),
-                address(feeProxy)
-            ))
+            abi.encodeCall(
+                FaivrRouter.initialize,
+                (admin, address(identityProxy), address(reputationProxy), address(validationProxy), address(feeProxy))
+            )
         );
         console.log("Router proxy:", address(routerProxy));
 
@@ -170,6 +153,28 @@ contract Deploy is Script {
         reputation.grantRole(reputation.FEEDBACK_ROUTER_ROLE(), deployment.routerProxy);
         reputation.grantRole(reputation.SETTLEMENT_SOURCE_ROLE(), deployment.feeProxy);
         feeModule.setReputationRegistry(deployment.reputationProxy);
+        _configureSupportedTokens(feeModule);
+    }
+
+    function _configureSupportedTokens(FaivrFeeModule feeModule) internal {
+        address usdcToken = vm.envOr("USDC_TOKEN", address(0));
+        address usdtToken = vm.envOr("USDT_TOKEN", address(0));
+        address frankencoinToken = vm.envOr("FRANKENCOIN_TOKEN", address(0));
+
+        if (usdcToken != address(0)) {
+            feeModule.setSupportedToken(usdcToken, true);
+            console.log("FeeModule token enabled:", usdcToken);
+        }
+
+        if (usdtToken != address(0)) {
+            feeModule.setSupportedToken(usdtToken, true);
+            console.log("FeeModule token enabled:", usdtToken);
+        }
+
+        if (frankencoinToken != address(0)) {
+            feeModule.setSupportedToken(frankencoinToken, true);
+            console.log("FeeModule token enabled:", frankencoinToken);
+        }
     }
 
     function _logSummary(

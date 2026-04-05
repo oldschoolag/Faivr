@@ -4,7 +4,12 @@ pragma solidity ^0.8.24;
 /// @title IFaivrFeeModule
 /// @notice Non-custodial escrow with programmable fee splits
 interface IFaivrFeeModule {
-    enum TaskStatus { FUNDED, SETTLED, RECLAIMED, DISPUTED }
+    enum TaskStatus {
+        FUNDED,
+        SETTLED,
+        RECLAIMED,
+        DISPUTED
+    }
 
     struct Task {
         uint256 agentId;
@@ -18,17 +23,26 @@ interface IFaivrFeeModule {
     }
 
     event TaskFunded(
-        uint256 indexed taskId, uint256 indexed agentId, address indexed client,
-        address token, uint256 amount, uint256 deadline
+        uint256 indexed taskId,
+        uint256 indexed agentId,
+        address indexed client,
+        address token,
+        uint256 amount,
+        uint256 deadline
     );
     event TaskSettled(
-        uint256 indexed taskId, uint256 indexed agentId, address agent,
-        uint256 agentPayout, uint256 protocolFee, uint256 devFee
+        uint256 indexed taskId,
+        uint256 indexed agentId,
+        address agent,
+        uint256 agentPayout,
+        uint256 protocolFee,
+        uint256 devFee
     );
     event TaskReclaimed(uint256 indexed taskId, address indexed client, uint256 amount);
     event FeeUpdated(uint256 oldFee, uint256 newFee, uint256 effectiveAt);
     event MaxEscrowUpdated(uint256 oldMax, uint256 newMax);
     event ReputationRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+    event SupportedTokenUpdated(address indexed token, bool supported);
 
     error ZeroAmount();
     error InvalidDeadline();
@@ -40,9 +54,18 @@ interface IFaivrFeeModule {
     error MsgValueMismatch();
     error ZeroAddress();
     error EscrowCapExceeded(uint256 amount, uint256 max);
+    error UnsupportedToken(address token);
+    error TokenTransferFailed(address token);
+    error TokenAmountMismatch(address token, uint256 expected, uint256 received);
 
-    function fundTask(uint256 agentId, address token, uint256 amount, uint256 deadline) external payable returns (uint256 taskId);
-    function fundTaskFor(uint256 agentId, address token, uint256 amount, uint256 deadline, address client) external payable returns (uint256 taskId);
+    function fundTask(uint256 agentId, address token, uint256 amount, uint256 deadline)
+        external
+        payable
+        returns (uint256 taskId);
+    function fundTaskFor(uint256 agentId, address token, uint256 amount, uint256 deadline, address client)
+        external
+        payable
+        returns (uint256 taskId);
     function settleTask(uint256 taskId) external;
     function settleTaskFor(uint256 taskId, address caller) external;
     function reclaimTask(uint256 taskId) external;
@@ -51,14 +74,20 @@ interface IFaivrFeeModule {
     function setProtocolWallet(address wallet) external;
     function setDevWallet(address wallet) external;
     function setReputationRegistry(address reputationRegistry_) external;
+    function setSupportedToken(address token, bool supported) external;
 
     function getTask(uint256 taskId) external view returns (Task memory);
     function feePercentage() external view returns (uint256);
     function protocolWallet() external view returns (address);
     function devWallet() external view returns (address);
-    function totalFeesCollected(address token) external view returns (uint256);
+    function totalFeesAccrued(address token) external view returns (uint256);
+    function isSupportedToken(address token) external view returns (bool);
     function pendingWithdrawal(address account) external view returns (uint256);
+    function pendingTokenWithdrawal(address token, address account) external view returns (uint256);
     function withdrawPending() external;
+    function withdrawPendingTo(address payable recipient) external;
+    function withdrawPendingToken(address token) external;
+    function withdrawPendingTokenTo(address token, address recipient) external;
     function reputationRegistry() external view returns (address);
 
     // ── Genesis Program ──────────────────────────────────

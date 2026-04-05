@@ -452,7 +452,7 @@ interface IFaivrFeeModule {
     function devWallet() external view returns (address);
 
     /// @notice Total fees collected (per token)
-    function totalFeesCollected(address token) external view returns (uint256);
+    function totalFeesAccrued(address token) external view returns (uint256);
 }
 ```
 

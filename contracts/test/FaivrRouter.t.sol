@@ -41,10 +41,8 @@ contract FaivrRouterTest is Test {
     function setUp() public {
         // Deploy identity
         FaivrIdentityRegistry identityImpl = new FaivrIdentityRegistry();
-        ERC1967Proxy identityProxy = new ERC1967Proxy(
-            address(identityImpl),
-            abi.encodeCall(FaivrIdentityRegistry.initialize, (admin))
-        );
+        ERC1967Proxy identityProxy =
+            new ERC1967Proxy(address(identityImpl), abi.encodeCall(FaivrIdentityRegistry.initialize, (admin)));
         identity = FaivrIdentityRegistry(address(identityProxy));
 
         vm.prank(agentOwner);
@@ -56,16 +54,14 @@ contract FaivrRouterTest is Test {
         // Deploy reputation
         FaivrReputationRegistry repImpl = new FaivrReputationRegistry();
         ERC1967Proxy repProxy = new ERC1967Proxy(
-            address(repImpl),
-            abi.encodeCall(FaivrReputationRegistry.initialize, (admin, address(identityProxy)))
+            address(repImpl), abi.encodeCall(FaivrReputationRegistry.initialize, (admin, address(identityProxy)))
         );
         reputation = FaivrReputationRegistry(address(repProxy));
 
         // Deploy validation
         FaivrValidationRegistry valImpl = new FaivrValidationRegistry();
         ERC1967Proxy valProxy = new ERC1967Proxy(
-            address(valImpl),
-            abi.encodeCall(FaivrValidationRegistry.initialize, (admin, address(identityProxy)))
+            address(valImpl), abi.encodeCall(FaivrValidationRegistry.initialize, (admin, address(identityProxy)))
         );
         validation = FaivrValidationRegistry(address(valProxy));
 
@@ -73,9 +69,7 @@ contract FaivrRouterTest is Test {
         FaivrFeeModule feeImpl = new FaivrFeeModule();
         ERC1967Proxy feeProxy = new ERC1967Proxy(
             address(feeImpl),
-            abi.encodeCall(FaivrFeeModule.initialize, (
-                admin, protocolWallet, devWallet, address(identityProxy)
-            ))
+            abi.encodeCall(FaivrFeeModule.initialize, (admin, protocolWallet, devWallet, address(identityProxy)))
         );
         feeModule = FaivrFeeModule(address(feeProxy));
 
@@ -83,15 +77,14 @@ contract FaivrRouterTest is Test {
         FaivrRouter routerImpl = new FaivrRouter();
         ERC1967Proxy routerProxy = new ERC1967Proxy(
             address(routerImpl),
-            abi.encodeCall(FaivrRouter.initialize, (
-                admin,
-                address(identityProxy),
-                address(repProxy),
-                address(valProxy),
-                address(feeProxy)
-            ))
+            abi.encodeCall(
+                FaivrRouter.initialize,
+                (admin, address(identityProxy), address(repProxy), address(valProxy), address(feeProxy))
+            )
         );
         router = FaivrRouter(address(routerProxy));
+
+        usdc = new RouterMockUSDC();
 
         vm.startPrank(admin);
         identity.grantRole(identity.REGISTRAR_ROLE(), address(router));
@@ -99,10 +92,9 @@ contract FaivrRouterTest is Test {
         reputation.grantRole(reputation.FEEDBACK_ROUTER_ROLE(), address(router));
         reputation.grantRole(reputation.SETTLEMENT_SOURCE_ROLE(), address(feeModule));
         feeModule.setReputationRegistry(address(reputation));
+        feeModule.setSupportedToken(address(usdc), true);
         feeModule.setMaxEscrowAmount(0);
         vm.stopPrank();
-
-        usdc = new RouterMockUSDC();
     }
 
     function test_getContracts() public view {
@@ -117,12 +109,8 @@ contract FaivrRouterTest is Test {
         vm.deal(alice, 1 ether);
 
         vm.prank(alice);
-        (uint256 newAgentId, uint256 taskId) = router.registerAndFund{value: 1 ether}(
-            "ipfs://new-agent",
-            address(0),
-            1 ether,
-            1 days
-        );
+        (uint256 newAgentId, uint256 taskId) =
+            router.registerAndFund{value: 1 ether}("ipfs://new-agent", address(0), 1 ether, 1 days);
 
         assertEq(identity.ownerOf(newAgentId), alice);
 
@@ -140,12 +128,8 @@ contract FaivrRouterTest is Test {
         usdc.approve(address(feeModule), 1_000e6);
 
         vm.prank(alice);
-        (uint256 newAgentId, uint256 taskId) = router.registerAndFund(
-            "ipfs://new-agent",
-            address(usdc),
-            1_000e6,
-            1 days
-        );
+        (uint256 newAgentId, uint256 taskId) =
+            router.registerAndFund("ipfs://new-agent", address(usdc), 1_000e6, 1 days);
 
         assertEq(identity.ownerOf(newAgentId), alice);
         assertEq(usdc.balanceOf(address(feeModule)), 1_000e6);
@@ -218,9 +202,10 @@ contract FaivrRouterTest is Test {
         vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
         new ERC1967Proxy(
             address(impl),
-            abi.encodeCall(FaivrRouter.initialize, (
-                admin, address(0), address(reputation), address(validation), address(feeModule)
-            ))
+            abi.encodeCall(
+                FaivrRouter.initialize,
+                (admin, address(0), address(reputation), address(validation), address(feeModule))
+            )
         );
     }
 }

@@ -156,7 +156,7 @@ export const FEE_MODULE_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
-    name: "totalFeesCollected",
+    name: "totalFeesAccrued",
     type: "function",
     stateMutability: "view",
     inputs: [{ name: "token", type: "address" }],

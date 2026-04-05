@@ -61,11 +61,17 @@ contract FaivrFeeModule is
     /// Appended after the legacy storage layout to preserve upgrade safety.
     address public reputationRegistry;
 
+    /// @dev Supported ERC20 funding tokens. ETH remains implicitly supported via address(0).
+    mapping(address token => bool) private _supportedTokens;
+
+    /// @dev Pending ERC20 withdrawals keyed by original recipient and token.
+    mapping(address account => mapping(address token => uint256)) private _pendingTokenWithdrawals;
+
     uint256 public constant GENESIS_MAX_AGENTS = 50;
     uint8 public constant GENESIS_FREE_TASKS = 10;
 
-    /// @custom:storage-gap  legacy gap reduced by 1 slot for reputationRegistry append
-    uint256[45] private __gap;
+    /// @custom:storage-gap legacy gap reduced by 3 slots for reputationRegistry + token support append
+    uint256[43] private __gap;
 
     // ── Initializer ──────────────────────────────────────
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -73,12 +79,10 @@ contract FaivrFeeModule is
         _disableInitializers();
     }
 
-    function initialize(
-        address admin,
-        address protocolWallet_,
-        address devWallet_,
-        address identityRegistry_
-    ) external initializer {
+    function initialize(address admin, address protocolWallet_, address devWallet_, address identityRegistry_)
+        external
+        initializer
+    {
         if (protocolWallet_ == address(0)) revert ZeroAddress();
         if (devWallet_ == address(0)) revert ZeroAddress();
         if (identityRegistry_ == address(0)) revert ZeroAddress();
@@ -101,25 +105,30 @@ contract FaivrFeeModule is
     }
 
     // ── Core ─────────────────────────────────────────────
-    function fundTask(
-        uint256 agentId,
-        address token,
-        uint256 amount,
-        uint256 deadline
-    ) external payable override nonReentrant whenNotPaused returns (uint256 taskId) {
+    function fundTask(uint256 agentId, address token, uint256 amount, uint256 deadline)
+        external
+        payable
+        override
+        nonReentrant
+        whenNotPaused
+        returns (uint256 taskId)
+    {
         if (amount == 0) revert ZeroAmount();
         if (deadline == 0) revert InvalidDeadline();
         if (_maxEscrowAmount > 0 && amount > _maxEscrowAmount) revert EscrowCapExceeded(amount, _maxEscrowAmount);
+        _requireSupportedToken(token);
 
         if (token == ETH) {
             if (msg.value != amount) revert MsgValueMismatch();
         } else {
             if (msg.value != 0) revert MsgValueMismatch();
-            IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+            _pullERC20(token, msg.sender, amount);
         }
 
         taskId = _nextTaskId;
-        unchecked { _nextTaskId++; }
+        unchecked {
+            _nextTaskId++;
+        }
 
         _tasks[taskId] = Task({
             agentId: agentId,
@@ -136,27 +145,31 @@ contract FaivrFeeModule is
     }
 
     /// @notice Fund a task on behalf of a client. Only callable by ROUTER_ROLE.
-    function fundTaskFor(
-        uint256 agentId,
-        address token,
-        uint256 amount,
-        uint256 deadline,
-        address client
-    ) external payable nonReentrant whenNotPaused onlyRole(ROUTER_ROLE) returns (uint256 taskId) {
+    function fundTaskFor(uint256 agentId, address token, uint256 amount, uint256 deadline, address client)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        onlyRole(ROUTER_ROLE)
+        returns (uint256 taskId)
+    {
         if (amount == 0) revert ZeroAmount();
         if (deadline == 0) revert InvalidDeadline();
         if (client == address(0)) revert ZeroAddress();
         if (_maxEscrowAmount > 0 && amount > _maxEscrowAmount) revert EscrowCapExceeded(amount, _maxEscrowAmount);
+        _requireSupportedToken(token);
 
         if (token == ETH) {
             if (msg.value != amount) revert MsgValueMismatch();
         } else {
             if (msg.value != 0) revert MsgValueMismatch();
-            IERC20(token).safeTransferFrom(client, address(this), amount);
+            _pullERC20(token, client, amount);
         }
 
         taskId = _nextTaskId;
-        unchecked { _nextTaskId++; }
+        unchecked {
+            _nextTaskId++;
+        }
 
         _tasks[taskId] = Task({
             agentId: agentId,
@@ -223,6 +236,12 @@ contract FaivrFeeModule is
         emit ReputationRegistryUpdated(oldRegistry, reputationRegistry_);
     }
 
+    function setSupportedToken(address token, bool supported) external override onlyRole(FEE_MANAGER_ROLE) {
+        if (token == ETH) revert ZeroAddress();
+        _supportedTokens[token] = supported;
+        emit SupportedTokenUpdated(token, supported);
+    }
+
     function setMaxEscrowAmount(uint256 maxAmount) external onlyRole(FEE_MANAGER_ROLE) {
         uint256 oldMax = _maxEscrowAmount;
         _maxEscrowAmount = maxAmount;
@@ -258,21 +277,37 @@ contract FaivrFeeModule is
         return _devWallet;
     }
 
-    function totalFeesCollected(address token) external view override returns (uint256) {
+    function totalFeesAccrued(address token) external view override returns (uint256) {
         return _totalFees[token];
     }
 
+    function isSupportedToken(address token) public view override returns (bool) {
+        return token == ETH || _supportedTokens[token];
+    }
+
     // ── Pull Withdrawals ─────────────────────────────────
-    function pendingWithdrawal(address account) external view returns (uint256) {
+    function pendingWithdrawal(address account) external view override returns (uint256) {
         return _pendingWithdrawals[account];
     }
 
-    function withdrawPending() external nonReentrant {
-        uint256 amount = _pendingWithdrawals[msg.sender];
-        if (amount == 0) revert ZeroAmount();
-        _pendingWithdrawals[msg.sender] = 0;
-        (bool ok,) = msg.sender.call{value: amount}("");
-        if (!ok) revert ETHTransferFailed();
+    function pendingTokenWithdrawal(address token, address account) external view override returns (uint256) {
+        return _pendingTokenWithdrawals[account][token];
+    }
+
+    function withdrawPending() external override nonReentrant {
+        _withdrawPendingETHTo(payable(msg.sender));
+    }
+
+    function withdrawPendingTo(address payable recipient) external override nonReentrant {
+        _withdrawPendingETHTo(recipient);
+    }
+
+    function withdrawPendingToken(address token) external override nonReentrant {
+        _withdrawPendingTokenTo(token, msg.sender);
+    }
+
+    function withdrawPendingTokenTo(address token, address recipient) external override nonReentrant {
+        _withdrawPendingTokenTo(token, recipient);
     }
 
     // ── Internal ─────────────────────────────────────────
@@ -304,9 +339,9 @@ contract FaivrFeeModule is
             _sendETH(_protocolWallet, protocolFee);
             _sendETH(_devWallet, devFee);
         } else {
-            if (agentPayout > 0) IERC20(task.token).safeTransfer(agentOwner, agentPayout);
-            if (protocolFee > 0) IERC20(task.token).safeTransfer(_protocolWallet, protocolFee);
-            if (devFee > 0) IERC20(task.token).safeTransfer(_devWallet, devFee);
+            _sendERC20OrEscrow(task.token, agentOwner, agentPayout);
+            _sendERC20OrEscrow(task.token, _protocolWallet, protocolFee);
+            _sendERC20OrEscrow(task.token, _devWallet, devFee);
         }
 
         emit TaskSettled(taskId, task.agentId, agentOwner, agentPayout, protocolFee, devFee);
@@ -324,12 +359,73 @@ contract FaivrFeeModule is
         IFaivrReputationRegistry(reputationRegistry).recordTaskSettlement(taskId, agentId, client);
     }
 
+    function _requireSupportedToken(address token) private view {
+        if (!isSupportedToken(token)) revert UnsupportedToken(token);
+    }
+
+    function _pullERC20(address token, address from, uint256 amount) private {
+        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransferFrom(from, address(this), amount);
+        uint256 balanceAfter = IERC20(token).balanceOf(address(this));
+        uint256 received = balanceAfter - balanceBefore;
+        if (received != amount) revert TokenAmountMismatch(token, amount, received);
+    }
+
+    function _withdrawPendingETHTo(address payable recipient) private {
+        if (recipient == address(0)) revert ZeroAddress();
+        uint256 amount = _pendingWithdrawals[msg.sender];
+        if (amount == 0) revert ZeroAmount();
+        _pendingWithdrawals[msg.sender] = 0;
+        (bool ok,) = recipient.call{value: amount}("");
+        if (!ok) revert ETHTransferFailed();
+    }
+
+    function _withdrawPendingTokenTo(address token, address recipient) private {
+        if (recipient == address(0)) revert ZeroAddress();
+        uint256 amount = _pendingTokenWithdrawals[msg.sender][token];
+        if (amount == 0) revert ZeroAmount();
+        _pendingTokenWithdrawals[msg.sender][token] = 0;
+        if (!_tryTransferERC20(token, recipient, amount)) revert TokenTransferFailed(token);
+    }
+
     function _sendETH(address to, uint256 amount) private {
+        if (amount == 0) {
+            return;
+        }
+
         (bool ok,) = to.call{value: amount, gas: 10000}("");
         if (!ok) {
             // Escrow for pull withdrawal instead of reverting
             _pendingWithdrawals[to] += amount;
         }
+    }
+
+    function _sendERC20OrEscrow(address token, address to, uint256 amount) private {
+        if (amount == 0) {
+            return;
+        }
+
+        if (!_tryTransferERC20(token, to, amount)) {
+            _pendingTokenWithdrawals[to][token] += amount;
+        }
+    }
+
+    function _tryTransferERC20(address token, address to, uint256 amount) private returns (bool) {
+        (bool ok, bytes memory data) = token.call(abi.encodeWithSelector(IERC20.transfer.selector, to, amount));
+        return _didTokenTransferSucceed(ok, data);
+    }
+
+    function _didTokenTransferSucceed(bool ok, bytes memory data) private pure returns (bool) {
+        if (!ok) {
+            return false;
+        }
+        if (data.length == 0) {
+            return true;
+        }
+        if (data.length == 32) {
+            return abi.decode(data, (bool));
+        }
+        return false;
     }
 
     // ── Genesis Program ─────────────────────────────────

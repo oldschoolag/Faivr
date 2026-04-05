@@ -21,8 +21,8 @@ Summary of all changes applied from the security audit. All 92 tests pass after 
 ### H-01 — Pull-Over-Push ETH Transfers in FeeModule
 **Severity:** High  
 **File:** `FaivrFeeModule.sol`  
-**Change:** `_sendETH()` now uses gas-limited call (10k gas). On failure, funds are escrowed in `_pendingWithdrawals` instead of reverting. New functions: `pendingWithdrawal(address)`, `withdrawPending()`.  
-**Frontend impact:** After settlement, agent owners/wallets should check `pendingWithdrawal()` and call `withdrawPending()` if ETH transfer failed.
+**Change:** `_sendETH()` now uses gas-limited call (10k gas). On failure, funds are escrowed in `_pendingWithdrawals` instead of reverting. Recovery now supports `pendingWithdrawal(address)`, `withdrawPending()`, and `withdrawPendingTo(address)` so failed recipients can redirect ETH to a rescue address. ERC20 settlement now also falls back to `pendingTokenWithdrawal(token, account)` with `withdrawPendingTokenTo(token, recipient)` when a payout transfer fails.  
+**Frontend impact:** After settlement, agent owners/wallets should check `pendingWithdrawal()` / `pendingTokenWithdrawal()` and call the appropriate withdrawal function if direct payout failed.
 
 ### H-02 — Reentrancy in Identity Registration
 **Severity:** High  

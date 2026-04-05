@@ -32,7 +32,7 @@
 
 ### M-02: Pull-Based Withdrawal for ETH Transfers in `settleTask()`
 
-**Fix:** `_sendETH()` in `FaivrFeeModule.sol` now uses a fixed gas stipend (`gas: 10000`) and on failure, escrows the amount in `_pendingWithdrawals[to]` instead of reverting. Added `pendingWithdrawal(address)` view and `withdrawPending()` pull function. This prevents griefing by malicious receiver contracts while ensuring settlement always succeeds.
+**Fix:** `_sendETH()` in `FaivrFeeModule.sol` now uses a fixed gas stipend (`gas: 10000`) and on failure, escrows the amount in `_pendingWithdrawals[to]` instead of reverting. Added `pendingWithdrawal(address)`, `withdrawPending()`, and `withdrawPendingTo(address)` so failed recipients can redirect ETH to a rescue address. ERC20 payouts now similarly fall back to `pendingTokenWithdrawal(token, account)` with `withdrawPendingTokenTo(token, recipient)` if a direct transfer fails. This prevents griefing by malicious receiver contracts while keeping settlement non-blocking.
 
 ### M-03: Zero-Address Checks in `initialize()`
 
