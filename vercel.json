@@ -2,5 +2,5 @@
   "buildCommand": "cd web && npm run build",
   "outputDirectory": "web/.next",
   "framework": "nextjs",
-  "installCommand": "cd web && npm ci"
+  "installCommand": "cd web && npm ci --include=dev"
 }
