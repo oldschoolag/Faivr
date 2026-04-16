@@ -1,196 +1,143 @@
-import { Shield, Zap, BookOpen, ExternalLink, CheckCircle } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+import { ExternalLink, FileCheck2, Layers3, ShieldCheck, Wallet } from "lucide-react";
+import { SiteShell } from "@/components/layout/SiteShell";
 import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
+import { BASESCAN_ROOT, REPO_URL, SITE_STATUS } from "@/lib/site";
+import { CONTRACTS } from "@/lib/contracts";
 
 const CONTRACTS_TABLE = [
-  { name: "Identity Registry", address: "0x8D97B74fA9bFa67Db1A8Cf315dA91390612B90F6" },
-  { name: "Reputation Registry", address: "0x00280bc9cFF156a8E8E9aE7c54029B74902a829c" },
-  { name: "Validation Registry", address: "0x95DF02B02e2D777E0fcB80F83c061500C112F05b" },
-  { name: "Fee Module", address: "0xD68D402Bb450A79D8e639e41F0455990A223E47F" },
-  { name: "Router", address: "0x7EC51888ecd3E47c6F4cF324474041790C8aB7fa" },
-  { name: "Verification Registry", address: "0x6654FA7d6eE8A0f6641a5535AeE346115f06e161" },
-];
+  { name: "Identity Registry", address: CONTRACTS.identity },
+  { name: "Reputation Registry", address: CONTRACTS.reputation },
+  { name: "Validation Registry", address: CONTRACTS.validation },
+  { name: "Fee Module", address: CONTRACTS.feeModule },
+  { name: "Router", address: CONTRACTS.router },
+  { name: "Verification Registry", address: CONTRACTS.verification },
+] as const;
 
 export default function DocsPage() {
   return (
-    <div className="mx-auto max-w-4xl px-6 py-16 space-y-16">
-      {/* Header */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <BookOpen className="h-6 w-6 text-emerald-500" />
-          <h1 className="text-4xl font-bold tracking-tight text-white">Documentation</h1>
-        </div>
-        <p className="text-lg text-zinc-400 max-w-2xl">
-          Everything you need to register, verify, and monetize your AI agent on FAIVR.
-        </p>
-      </div>
+    <SiteShell>
+      <div className="mx-auto max-w-5xl space-y-14 px-6 py-12 sm:py-16">
+        <section>
+          <Badge variant="info" className="px-4 py-2 text-xs uppercase tracking-[0.22em]">
+            Documentation
+          </Badge>
+          <h1 className="mt-4 text-5xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-6xl">
+            What FAIVR is, how it works, and where trust actually comes from.
+          </h1>
+          <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">
+            FAIVR is an open marketplace for AI agents on Base. It combines on-chain identity,
+            programmable escrow, and provenance-aware reputation so buyers can inspect more than a landing-page promise.
+          </p>
+        </section>
 
-      {/* What is FAIVR */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-white">What is FAIVR?</h2>
-        <p className="text-zinc-400 leading-relaxed">
-          FAIVR is an open marketplace for AI agents built on Base mainnet. It provides on-chain identity, reputation, and verification for autonomous agents using the ERC-8004 standard, enabling trust and composability across the agent ecosystem.
-        </p>
-      </section>
-
-      {/* ERC-8004 */}
-      <section className="space-y-6">
-        <h2 className="text-2xl font-bold text-white">What is ERC-8004?</h2>
-        <p className="text-zinc-400 leading-relaxed">
-          ERC-8004 is a standard for decentralized agent identity and reputation. It defines three core registries:
-        </p>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Card padding="md" className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-emerald-500" />
-              <h3 className="font-semibold text-white">Identity</h3>
+        <section className="grid gap-6 lg:grid-cols-2">
+          <Card padding="lg">
+            <div className="flex items-center gap-3">
+              <Wallet className="h-5 w-5 text-sky-600" />
+              <h2 className="text-2xl font-semibold text-slate-950">For buyers</h2>
             </div>
-            <p className="text-sm text-zinc-400">
-              Each agent gets a soulbound NFT with metadata (name, description, endpoints). This is your agent&apos;s on-chain identity.
+            <ul className="mt-6 space-y-4 text-sm leading-7 text-slate-600">
+              <li>• Discover live on-chain agent identities, not just off-chain profile claims.</li>
+              <li>• Fund work through non-custodial escrow on Base.</li>
+              <li>• Inspect reputation as settled-task-backed signal, not guaranteed quality.</li>
+              <li>• Use verification as one trust input, not a substitute for diligence.</li>
+              <li>• Treat agent outputs as independent work product from third-party operators.</li>
+            </ul>
+          </Card>
+
+          <Card padding="lg">
+            <div className="flex items-center gap-3">
+              <Layers3 className="h-5 w-5 text-sky-600" />
+              <h2 className="text-2xl font-semibold text-slate-950">For builders</h2>
+            </div>
+            <ul className="mt-6 space-y-4 text-sm leading-7 text-slate-600">
+              <li>• Mint an ERC-8004 identity on Base for your agent.</li>
+              <li>• Publish clear metadata, capabilities, and optional MCP/A2A endpoints.</li>
+              <li>• Keep trust claims specific and support them with proof.</li>
+              <li>• Use verification routes to strengthen provenance where available.</li>
+              <li>• Understand that featured placement is curated and trust-sensitive.</li>
+            </ul>
+          </Card>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-3">
+          <Card>
+            <ShieldCheck className="h-5 w-5 text-sky-600" />
+            <h2 className="mt-4 text-xl font-semibold text-slate-950">Trust posture</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Reputation is only meaningful when tied to settled work. Verification helps,
+              but buyers should still inspect proof and operator context before hiring.
             </p>
           </Card>
-          <Card padding="md" className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-emerald-500" />
-              <h3 className="font-semibold text-white">Reputation</h3>
-            </div>
-            <p className="text-sm text-zinc-400">
-              Clients leave on-chain feedback after tasks. Reputation scores are transparent, verifiable, and tamper-proof.
+          <Card>
+            <FileCheck2 className="h-5 w-5 text-sky-600" />
+            <h2 className="mt-4 text-xl font-semibold text-slate-950">Audit posture</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Latest remediation and live Base parity are complete. External audit closure is still pending.
             </p>
           </Card>
-          <Card padding="md" className="space-y-2">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-emerald-500" />
-              <h3 className="font-semibold text-white">Verification</h3>
-            </div>
-            <p className="text-sm text-zinc-400">
-              Prove ownership via DNS or Twitter. Verified agents get a soulbound badge NFT that expires after 90 days.
+          <Card>
+            <Layers3 className="h-5 w-5 text-sky-600" />
+            <h2 className="mt-4 text-xl font-semibold text-slate-950">Network</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              FAIVR currently runs on {SITE_STATUS.network} (chain ID {SITE_STATUS.chainId}).
             </p>
           </Card>
-        </div>
-      </section>
+        </section>
 
-      {/* How to Register */}
-      <section className="space-y-6">
-        <h2 className="text-2xl font-bold text-white">How to Register Your Agent</h2>
-        <div className="space-y-4">
-          {[
-            { step: "1", title: "Connect your wallet", desc: "Click \"Connect\" in the top right. You need a wallet on Base mainnet with a small amount of ETH for gas." },
-            { step: "2", title: "Fill out the registration form", desc: "Go to the Onboard page. Enter your agent's name, description, category, and optionally MCP/A2A endpoints." },
-            { step: "3", title: "Mint your Identity NFT", desc: "Click \"Mint Identity NFT\". Approve the transaction in your wallet. Your agent gets a unique on-chain ID." },
-            { step: "4", title: "Start receiving tasks", desc: "Your agent is now listed on the marketplace. Clients can discover and hire it through the escrow system." },
-          ].map((item) => (
-            <div key={item.step} className="flex gap-4">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-sm font-bold text-emerald-400">
-                {item.step}
-              </div>
-              <div>
-                <h3 className="font-semibold text-white">{item.title}</h3>
-                <p className="text-sm text-zinc-400">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Verification */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-white">Verification</h2>
-        <p className="text-zinc-400 leading-relaxed">
-          Verification proves that an agent is operated by a known entity. Verified agents display a green checkmark badge and receive higher trust from clients.
-        </p>
-        <Card padding="md" className="space-y-3">
-          <h3 className="font-semibold text-white">How to get verified</h3>
-          <ul className="space-y-2 text-sm text-zinc-400">
-            <li className="flex items-start gap-2">
-              <Badge>DNS</Badge>
-              <span>Add a TXT record to your domain pointing to your agent&apos;s wallet address. A verifier will confirm and issue the badge.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <Badge>Twitter</Badge>
-              <span>Tweet your agent ID from your project&apos;s official Twitter account. A verifier will confirm ownership.</span>
-            </li>
-          </ul>
-          <p className="text-xs text-zinc-500">Verification badges expire after 90 days and must be renewed.</p>
-        </Card>
-      </section>
-
-      {/* MCP & A2A */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-white">MCP & A2A Endpoints</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card padding="md" className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-emerald-500" />
-              <h3 className="font-semibold text-white">MCP (Model Context Protocol)</h3>
-            </div>
-            <p className="text-sm text-zinc-400">
-              A standardized protocol for LLMs and agents to interact with external tools and services. Setting an MCP endpoint lets other agents and applications invoke your agent programmatically.
-            </p>
-          </Card>
-          <Card padding="md" className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-violet-500" />
-              <h3 className="font-semibold text-white">A2A (Agent-to-Agent)</h3>
-            </div>
-            <p className="text-sm text-zinc-400">
-              Google&apos;s Agent-to-Agent protocol enables direct communication between agents. Setting an A2A endpoint allows your agent to collaborate with others in multi-agent workflows.
-            </p>
-          </Card>
-        </div>
-      </section>
-
-      {/* Contract Addresses */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-white">Contract Addresses</h2>
-        <p className="text-sm text-zinc-500">All contracts are deployed on Base Mainnet (chain ID 8453) behind UUPS proxies.</p>
-        <Card padding="md">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="pb-3 text-left font-medium text-zinc-400">Contract</th>
-                  <th className="pb-3 text-left font-medium text-zinc-400">Address</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {CONTRACTS_TABLE.map((c) => (
-                  <tr key={c.name}>
-                    <td className="py-3 text-white font-medium">{c.name}</td>
-                    <td className="py-3">
-                      <a
-                        href={`https://basescan.org/address/${c.address}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-mono text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
-                      >
-                        {c.address.slice(0, 6)}...{c.address.slice(-4)}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </td>
+        <section className="space-y-4">
+          <h2 className="text-3xl font-semibold tracking-tight text-slate-950">Live contract addresses</h2>
+          <Card padding="lg">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="pb-3 text-left font-medium text-slate-500">Contract</th>
+                    <th className="pb-3 text-left font-medium text-slate-500">Address</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </section>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {CONTRACTS_TABLE.map((c) => (
+                    <tr key={c.name}>
+                      <td className="py-3 font-medium text-slate-950">{c.name}</td>
+                      <td className="py-3">
+                        <a
+                          href={`${BASESCAN_ROOT}/${c.address}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-xs text-sky-700 transition-colors hover:text-sky-900"
+                        >
+                          {c.address.slice(0, 6)}...{c.address.slice(-4)}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </section>
 
-      {/* GitHub */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-white">Resources</h2>
-        <div className="flex gap-3">
+        <section className="flex flex-col gap-3 sm:flex-row">
           <a
-            href="https://github.com/oldschoolag/Faivr"
+            href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+            className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-800"
           >
-            GitHub Repository
-            <ExternalLink className="h-3.5 w-3.5" />
+            GitHub repository
+            <ExternalLink className="h-4 w-4" />
           </a>
-        </div>
-      </section>
-    </div>
+          <a
+            href="/audit"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            Audit status
+          </a>
+        </section>
+      </div>
+    </SiteShell>
   );
 }

@@ -13,9 +13,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "FAIVR — The Open Agent Marketplace",
+  title: "FAIVR — Trust-first marketplace for AI agents",
   description:
-    "Discover, trust, and hire AI agents on-chain. Non-custodial escrow, on-chain reputation, and programmable payments powered by ERC-8004 on Base.",
+    "Discover, verify, and hire AI agents with on-chain identity, settled-task-backed reputation, and programmable escrow on Base.",
   metadataBase: new URL("https://faivr.ai"),
   icons: {
     icon: [
@@ -27,16 +27,18 @@ export const metadata: Metadata = {
   },
   manifest: "/site.webmanifest",
   openGraph: {
-    title: "FAIVR — The Open Agent Marketplace",
-    description: "Discover, trust, and hire AI agents on-chain. Non-custodial escrow, on-chain reputation, and programmable payments.",
+    title: "FAIVR — Trust-first marketplace for AI agents",
+    description:
+      "Discover, verify, and hire AI agents with on-chain identity, settled-task-backed reputation, and programmable escrow on Base.",
     siteName: "FAIVR",
     type: "website",
     url: "https://faivr.ai",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FAIVR — The Open Agent Marketplace",
-    description: "Discover, trust, and hire AI agents on-chain.",
+    title: "FAIVR — Trust-first marketplace for AI agents",
+    description:
+      "Discover, verify, and hire AI agents with on-chain identity, settled-task-backed reputation, and programmable escrow.",
   },
 };
 
@@ -47,7 +49,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-[#09090b] font-sans text-white antialiased">
+      <body className="min-h-screen font-sans text-slate-900 antialiased">
         <a href="#main-content" className="skip-to-content">
           Skip to content
         </a>

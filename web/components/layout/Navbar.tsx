@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { ConnectButton } from "@/components/wallet/ConnectButton";
@@ -7,74 +9,64 @@ import { NetworkBadge } from "@/components/wallet/NetworkBadge";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { label: "Marketplace", href: "/" },
-  { label: "Genesis", href: "/genesis", highlight: true },
+  { label: "Home", href: "/" },
+  { label: "Marketplace", href: "/marketplace" },
+  { label: "Onboard Agent", href: "/onboard-agent" },
+  { label: "Audit", href: "/audit" },
   { label: "Docs", href: "/docs" },
-  { label: "GitHub", href: "https://github.com/oldschoolag/Faivr", external: true },
-];
+  { label: "About", href: "/about" },
+] as const;
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <nav
-      className="sticky top-0 z-50 border-b border-white/5 bg-[#09090b]/80 backdrop-blur-xl"
+      className="sticky top-0 z-50 border-b border-white/70 bg-white/80 backdrop-blur-xl"
       aria-label="Main navigation"
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        {/* Logo — using native <a> for reliable mobile tapping */}
-        <a
+        <Link
           href="/"
           className="relative z-10 flex items-center gap-2.5 py-3 pr-4 -my-3 -mr-2"
           aria-label="FAIVR home"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-xs font-bold text-black">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-xs font-bold text-white shadow-sm">
             F
           </div>
-          <span className="text-xl font-bold tracking-tight">FAIVR</span>
-        </a>
+          <div>
+            <span className="block text-sm font-semibold uppercase tracking-[0.22em] text-sky-600">
+              FAIVR
+            </span>
+          </div>
+        </Link>
 
-        {/* Desktop nav */}
-        <div className="hidden items-center gap-6 md:flex">
-          {NAV_LINKS.map((l) =>
-            l.external ? (
-              <a
-                key={l.label}
-                href={l.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-zinc-400 transition-colors hover:text-white"
-              >
-                {l.label}
-              </a>
-            ) : (
-              <a
-                key={l.label}
-                href={l.href}
+        <div className="hidden items-center gap-1 md:flex">
+          {NAV_LINKS.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <Link
+                key={link.label}
+                href={link.href}
                 className={cn(
-                  "text-sm transition-colors",
-                  l.highlight
-                    ? "font-semibold text-amber-400 hover:text-amber-300"
-                    : "text-zinc-400 hover:text-white"
+                  "rounded-full px-4 py-2 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 )}
               >
-                {l.highlight && (
-                  <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                )}
-                {l.label}
-              </a>
-            )
-          )}
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
 
-        {/* Right side */}
         <div className="flex items-center gap-3">
           <NetworkBadge />
           <ConnectButton />
-
-          {/* Mobile hamburger */}
           <button
-            className="ml-1 flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:bg-white/5 md:hidden"
+            className="ml-1 flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 hover:bg-slate-100 md:hidden"
             onClick={() => setOpen(!open)}
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
@@ -84,34 +76,31 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu */}
       <div
         className={cn(
-          "overflow-hidden border-t border-white/5 md:hidden transition-all duration-200",
-          open ? "max-h-48" : "max-h-0"
+          "overflow-hidden border-t border-slate-200 md:hidden transition-all duration-200",
+          open ? "max-h-96" : "max-h-0"
         )}
       >
         <div className="space-y-1 px-6 py-3">
-          {NAV_LINKS.map((l) => (
-            <a
-              key={l.label}
-              href={l.href}
-              target={l.external ? "_blank" : undefined}
-              rel={l.external ? "noopener noreferrer" : undefined}
-              className={cn(
-                "block rounded-lg px-3 py-2 text-sm hover:bg-white/5",
-                l.highlight
-                  ? "font-semibold text-amber-400 hover:text-amber-300"
-                  : "text-zinc-400 hover:text-white"
-              )}
-              onClick={() => setOpen(false)}
-            >
-              {l.highlight && (
-                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              )}
-              {l.label}
-            </a>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <Link
+                key={link.label}
+                href={link.href}
+                className={cn(
+                  "block rounded-2xl px-4 py-3 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                )}
+                onClick={() => setOpen(false)}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
       </div>
     </nav>

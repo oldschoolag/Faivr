@@ -1,12 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useAccount } from "wagmi";
 import { formatEther } from "viem";
-import { Clock, CheckCircle2, RotateCcw, Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { useUserTasks, useSettleTask, useReclaimTask, STATUS_LABELS } from "@/hooks/useEscrow";
+import { STATUS_LABELS, useReclaimTask, useSettleTask, useUserTasks } from "@/hooks/useEscrow";
 import type { TaskInfo } from "@/hooks/useEscrow";
-import { useState } from "react";
 
 function deadlineCountdown(deadline: bigint): string {
   const now = BigInt(Math.floor(Date.now() / 1000));
@@ -22,15 +22,15 @@ function deadlineCountdown(deadline: bigint): string {
 }
 
 function statusColor(status: number): string {
-  if (status === 0) return "text-emerald-400";
-  if (status === 1) return "text-blue-400";
-  return "text-zinc-500";
+  if (status === 0) return "text-emerald-700";
+  if (status === 1) return "text-sky-700";
+  return "text-slate-500";
 }
 
 function TaskCard({ task }: { task: TaskInfo }) {
   const { settleTask, isPending: settlingPending, isConfirming: settlingConfirming, error: settleError } = useSettleTask();
   const { reclaimTask, isPending: reclaimPending, isConfirming: reclaimConfirming, error: reclaimError } = useReclaimTask();
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError] = useState<string | null>(null);
 
   const isFunded = task.status === 0;
   const now = BigInt(Math.floor(Date.now() / 1000));
@@ -38,32 +38,32 @@ function TaskCard({ task }: { task: TaskInfo }) {
   const settling = settlingPending || settlingConfirming;
   const reclaiming = reclaimPending || reclaimConfirming;
 
-  const error = settleError || reclaimError;
+  const error = actionError || settleError || reclaimError;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-      <div className="flex items-start justify-between mb-3">
+    <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_20px_60px_-36px_rgba(15,23,42,0.35)]">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h4 className="text-sm font-bold text-white">
+          <h4 className="text-sm font-bold text-slate-950">
             {task.agentName || `Agent #${task.agentId.toString()}`}
           </h4>
-          <p className="text-xs text-zinc-500 font-mono">Task #{task.taskId.toString()}</p>
+          <p className="font-mono text-xs text-slate-400">Task #{task.taskId.toString()}</p>
         </div>
         <span className={`text-xs font-semibold ${statusColor(task.status)}`}>
           {STATUS_LABELS[task.status] ?? "Unknown"}
         </span>
       </div>
 
-      <div className="flex items-center justify-between text-sm mb-3">
-        <span className="text-zinc-400">{formatEther(task.amount)} ETH</span>
-        <span className="flex items-center gap-1 text-xs text-zinc-500">
+      <div className="mb-3 flex items-center justify-between text-sm">
+        <span className="font-medium text-slate-950">{formatEther(task.amount)} ETH</span>
+        <span className="flex items-center gap-1 text-xs text-slate-500">
           <Clock className="h-3 w-3" />
           {isFunded ? deadlineCountdown(task.fundedAt + task.deadline) : STATUS_LABELS[task.status]}
         </span>
       </div>
 
       {error && (
-        <div className="flex items-center gap-1.5 text-xs text-red-400 mb-2">
+        <div className="mb-2 flex items-center gap-1.5 text-xs text-red-700">
           <AlertCircle className="h-3 w-3" />
           {(error as Error).message?.slice(0, 100) ?? "Failed"}
         </div>
@@ -103,15 +103,15 @@ export function TaskManager() {
 
   if (!isConnected) {
     return (
-      <div className="text-center py-16">
-        <p className="text-zinc-500">Connect your wallet to view tasks</p>
+      <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/80 py-16 text-center shadow-sm">
+        <p className="text-slate-500">Connect your wallet to view live tasks.</p>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16 gap-2 text-zinc-500">
+      <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
         <Loader2 className="h-5 w-5 animate-spin" />
         Loading tasks…
       </div>
@@ -120,9 +120,9 @@ export function TaskManager() {
 
   if (tasks.length === 0) {
     return (
-      <div className="text-center py-16">
-        <p className="text-zinc-500 mb-1">No tasks yet</p>
-        <p className="text-xs text-zinc-600">Hire an agent from the marketplace to get started</p>
+      <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/80 py-16 text-center shadow-sm">
+        <p className="mb-1 text-slate-500">No tasks yet</p>
+        <p className="text-xs text-slate-400">Hire an agent from the marketplace to get started.</p>
       </div>
     );
   }

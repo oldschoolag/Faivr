@@ -1,93 +1,52 @@
+import { useMemo } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
 import { CONTRACTS, IDENTITY_ABI } from "@/lib/contracts";
 import type { AgentData } from "@/components/agent/AgentCard";
-import { useMemo } from "react";
 
-const MOCK_AGENTS: AgentData[] = [
-  {
-    id: 1,
-    name: "YieldGuard v3",
-    description: "Optimizes yield strategies across Aave and Morpho with real-time risk monitoring and automated rebalancing.",
-    rating: 0,
-    reviews: 0,
-    tags: ["DeFi", "Risk"],
-    validated: true,
-    isExample: true,
-  },
-  {
-    id: 2,
-    name: "CodeJanitor",
-    description: "Autonomous code auditor for Solidity smart contracts. Specializes in reentrancy, logic errors, and gas optimization.",
-    rating: 0,
-    reviews: 0,
-    tags: ["Security", "DevOps"],
-    validated: true,
-    isExample: true,
-  },
-  {
-    id: 3,
-    name: "SentimentOracle",
-    description: "Aggregates social sentiment for low-cap tokens. Predicts volatility spikes with 78% accuracy over 30 days.",
-    rating: 0,
-    reviews: 0,
-    tags: ["Data", "Trading"],
-    validated: false,
-    isExample: true,
-  },
-  {
-    id: 4,
-    name: "BridgeBot",
-    description: "Cross-chain asset bridging agent. Finds optimal routes across 12 networks with MEV protection built in.",
-    rating: 0,
-    reviews: 0,
-    tags: ["DeFi", "Trading"],
-    validated: true,
-    isExample: true,
-  },
-  {
-    id: 5,
-    name: "AuditShield",
-    description: "Pre-deployment security scanner that catches common vulnerabilities before they reach mainnet.",
-    rating: 0,
-    reviews: 0,
-    tags: ["Security"],
-    validated: true,
-    isExample: true,
-  },
-  {
-    id: 6,
-    name: "DataWeaver",
-    description: "Aggregates on-chain and off-chain data into unified feeds. Supports custom schemas and real-time streaming.",
-    rating: 0,
-    reviews: 0,
-    tags: ["Data"],
-    validated: false,
-    isExample: true,
-  },
-];
+function decodeAgentURI(uri: string): string {
+  if (uri.startsWith("data:application/json;base64,")) {
+    return atob(uri.slice("data:application/json;base64,".length));
+  }
+
+  if (uri.startsWith("data:application/json;utf8,")) {
+    return decodeURIComponent(uri.slice("data:application/json;utf8,".length));
+  }
+
+  return uri;
+}
 
 function parseAgentURI(uri: string, id: number): AgentData | null {
+  const decoded = decodeAgentURI(uri);
+
   try {
-    const parsed = JSON.parse(uri);
+    const parsed = JSON.parse(decoded);
+    const tags = Array.isArray(parsed.tags)
+      ? parsed.tags.filter((tag: unknown): tag is string => typeof tag === "string")
+      : typeof parsed.category === "string"
+        ? [parsed.category]
+        : [];
+
     return {
       id,
       name: parsed.name || `Agent #${id}`,
       description: parsed.description || "",
       rating: 0,
       reviews: 0,
-      tags: parsed.category ? [parsed.category] : [],
-      validated: false,
+      tags,
+      validated: Boolean(parsed.validated),
+      verified: Boolean(parsed.verified),
       isExample: false,
     };
   } catch {
     return {
       id,
       name: `Agent #${id}`,
-      description: uri.slice(0, 200),
+      description: decoded.slice(0, 220),
       rating: 0,
       reviews: 0,
       tags: [],
       validated: false,
+      verified: false,
       isExample: false,
     };
   }
@@ -102,7 +61,6 @@ export function useAgents() {
 
   const count = agentCount ? Number(agentCount) : 0;
 
-  // Build contract calls to fetch tokenURI for each on-chain agent
   const tokenURICalls = useMemo(() => {
     if (count === 0) return [];
     return Array.from({ length: count }, (_, i) => ({
@@ -119,7 +77,7 @@ export function useAgents() {
   });
 
   const agents = useMemo(() => {
-    if (count === 0 || !tokenURIs) return MOCK_AGENTS;
+    if (count === 0 || !tokenURIs) return [];
 
     const onChainAgents: AgentData[] = [];
     for (let i = 0; i < tokenURIs.length; i++) {
@@ -130,7 +88,7 @@ export function useAgents() {
       }
     }
 
-    return onChainAgents.length > 0 ? onChainAgents : MOCK_AGENTS;
+    return onChainAgents;
   }, [count, tokenURIs]);
 
   return { agents, isLoading, count };

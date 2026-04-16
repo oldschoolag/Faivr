@@ -5,18 +5,18 @@ import { Button } from "@/components/ui/Button";
 
 export function ConnectButton() {
   const { address, isConnected } = useAccount();
-  const { connect, connectors, isPending, error } = useConnect();
+  const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
 
   if (isConnected && address) {
     return (
       <button
         onClick={() => disconnect()}
-        className="flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2 transition-colors hover:bg-white/10"
+        className="hidden items-center gap-2.5 rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm transition-colors hover:bg-slate-50 sm:flex"
         aria-label={`Connected wallet ${address}. Click to disconnect.`}
       >
-        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span className="text-sm font-mono text-white/70">
+        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+        <span className="text-sm font-mono text-slate-700">
           {address.slice(0, 6)}…{address.slice(-4)}
         </span>
       </button>
@@ -28,7 +28,6 @@ export function ConnectButton() {
     if (connector) {
       connect({ connector });
     } else {
-      // No injected wallet found — guide user
       window.open("https://metamask.io/download/", "_blank");
     }
   };
@@ -39,6 +38,7 @@ export function ConnectButton() {
       onClick={handleConnect}
       disabled={isPending}
       aria-label="Connect wallet"
+      className="shadow-sm"
     >
       {isPending ? "Connecting…" : "Connect Wallet"}
     </Button>

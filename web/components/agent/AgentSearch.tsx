@@ -4,19 +4,21 @@ import { useCallback, useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const CATEGORIES = ["All", "DeFi", "Security", "Data", "Trading"] as const;
-type Category = (typeof CATEGORIES)[number];
+const DEFAULT_FILTERS = ["All", "DeFi", "Security", "Data", "Trading", "Marketing", "Other"] as const;
+
+type Category = string;
 
 interface AgentSearchProps {
   onSearch: (query: string) => void;
   onFilter: (category: Category) => void;
   activeFilter: string;
+  filters?: string[];
 }
 
-export function AgentSearch({ onSearch, onFilter, activeFilter }: AgentSearchProps) {
+export function AgentSearch({ onSearch, onFilter, activeFilter, filters }: AgentSearchProps) {
   const [query, setQuery] = useState("");
+  const categories = filters && filters.length > 0 ? filters : [...DEFAULT_FILTERS];
 
-  // Debounce
   useEffect(() => {
     const timer = setTimeout(() => onSearch(query), 300);
     return () => clearTimeout(timer);
@@ -31,31 +33,31 @@ export function AgentSearch({ onSearch, onFilter, activeFilter }: AgentSearchPro
 
   return (
     <div className="space-y-4">
-      <div className="relative group max-w-md w-full">
+      <div className="relative max-w-md w-full group">
         <Search
-          className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 transition-colors group-focus-within:text-emerald-500"
+          className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-sky-600"
           aria-hidden="true"
         />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search agents…"
+          placeholder="Search live agents…"
           aria-label="Search agents"
-          className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 pl-11 pr-4 text-sm text-white placeholder:text-zinc-600 transition-all focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+          className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition-all focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100"
         />
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {CATEGORIES.map((cat) => (
+        {categories.map((cat) => (
           <button
             key={cat}
             onClick={() => handleFilter(cat)}
             className={cn(
-              "rounded-full px-3.5 py-1.5 text-xs font-medium transition-all",
+              "rounded-full px-3.5 py-2 text-xs font-medium transition-all",
               activeFilter === cat
-                ? "bg-white text-black"
-                : "border border-white/10 text-zinc-400 hover:bg-white/5 hover:text-white"
+                ? "bg-slate-950 text-white"
+                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-950"
             )}
             aria-pressed={activeFilter === cat}
           >

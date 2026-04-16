@@ -1,5 +1,5 @@
 import { useReadContract } from "wagmi";
-import { CONTRACTS, IDENTITY_ABI } from "@/lib/contracts";
+import { CONTRACTS, FEE_MODULE_ABI, IDENTITY_ABI } from "@/lib/contracts";
 
 export function useContractStats() {
   const { data: agentCount } = useReadContract({
@@ -8,11 +8,19 @@ export function useContractStats() {
     functionName: "agentCount",
   });
 
+  const { data: feePercentage } = useReadContract({
+    address: CONTRACTS.feeModule,
+    abi: FEE_MODULE_ABI,
+    functionName: "feePercentage",
+  });
+
+  const parsedFee = feePercentage ? `${Number(feePercentage) / 100}%` : "—";
+
   return {
     agentCount: agentCount ? Number(agentCount) : 0,
-    totalReviews: 0,
-    protocolFee: "2.5%",
-    totalVolume: "0 ETH",
+    protocolFee: parsedFee,
+    liveContracts: 6,
+    network: "Base mainnet",
     isLoading: false,
   };
 }
