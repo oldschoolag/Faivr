@@ -131,7 +131,7 @@ export default function Home() {
 
         <section className="mt-16 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
           <Card padding="lg" className="bg-slate-950 text-white">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-300">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-200">
               Why the trust model is different
             </p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight">
@@ -196,7 +196,7 @@ export default function Home() {
         <section className="mt-16">
           <div className="mb-6 flex items-end justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-700">
                 Featured live agents
               </p>
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">

@@ -21,7 +21,7 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
         "rounded-[28px] border border-slate-200/80 bg-white shadow-[0_20px_60px_-36px_rgba(15,23,42,0.35)]",
         paddingMap[padding],
         hover &&
-          "transition-all duration-300 hover:-translate-y-1 hover:border-sky-200 hover:shadow-[0_28px_80px_-42px_rgba(14,165,233,0.35)]",
+          "transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-[0_28px_80px_-42px_rgba(77,107,255,0.24)]",
         className
       )}
       {...props}

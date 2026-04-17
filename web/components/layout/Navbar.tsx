@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { ConnectButton } from "@/components/wallet/ConnectButton";
 import { NetworkBadge } from "@/components/wallet/NetworkBadge";
+import { ProductLockup } from "@/components/layout/ProductLockup";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -29,17 +30,10 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <Link
           href="/"
-          className="relative z-10 flex items-center gap-2.5 py-3 pr-4 -my-3 -mr-2"
+          className="relative z-10 flex items-center py-3 pr-4 -my-3 -mr-2"
           aria-label="FAIVR home"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-xs font-bold text-white shadow-sm">
-            F
-          </div>
-          <div>
-            <span className="block text-sm font-semibold uppercase tracking-[0.22em] text-sky-600">
-              FAIVR
-            </span>
-          </div>
+          <ProductLockup product="FAIVR" accentClass="bg-[var(--faivr-accent)]" compact />
         </Link>
 
         <div className="hidden items-center gap-1 md:flex">

@@ -1,7 +1,7 @@
 # FAIVR Marketplace — Privacy Policy
 
 **Effective Date:** 10 February 2026
-**Data Controller:** Old School GmbH (CHE-485.065.843), Walchwil, Switzerland
+**Data Controller:** Old School GmbH (CHE-485.065.843), Zugerstrasse 88, 6318 Walchwil, Switzerland
 
 ---
 
@@ -173,7 +173,9 @@ We may update this Privacy Policy from time to time. The revised version will be
 For any questions or concerns regarding this Privacy Policy or our data processing practices:
 
 **Old School GmbH**
-Walchwil, Canton of Zug, Switzerland
+Zugerstrasse 88
+6318 Walchwil
+Switzerland
 Email: **privacy@faivr.io**
 
 ---

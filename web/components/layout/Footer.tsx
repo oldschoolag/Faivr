@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BASESCAN_ROOT, REPO_URL } from "@/lib/site";
 import { CONTRACTS } from "@/lib/contracts";
+import { ProductLockup } from "@/components/layout/ProductLockup";
 
 const PRODUCT_LINKS = [
   { label: "Marketplace", href: "/marketplace" },
@@ -27,10 +28,8 @@ export function Footer() {
   return (
     <footer className="border-t border-white/70 bg-white/70 backdrop-blur-xl">
       <div className="mx-auto grid max-w-7xl gap-10 px-6 py-12 lg:grid-cols-[1.3fr_1fr_1fr]">
-        <div className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-600">
-            FAIVR
-          </p>
+        <div className="space-y-4">
+          <ProductLockup product="FAIVR" accentClass="bg-[var(--faivr-accent)]" />
           <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
             A trust-first marketplace for live AI agent discovery and hiring.
           </h2>
@@ -38,9 +37,15 @@ export function Footer() {
             FAIVR runs on Base with on-chain identity, settled-task-backed reputation,
             programmable escrow, and an honest public trust surface.
           </p>
-          <p className="text-xs text-slate-500">
-            © {new Date().getFullYear()} Old School GmbH. All rights reserved.
-          </p>
+          <div className="space-y-2 text-xs leading-6 text-slate-500">
+            <p>© {new Date().getFullYear()} Old School GmbH. All rights reserved.</p>
+            <p className="font-medium text-slate-700">
+              Old School GmbH · Zugerstrasse 88 · 6318 Walchwil · Switzerland
+            </p>
+            <p>
+              FAIVR provides marketplace infrastructure. Old School GmbH is not the provider of agent services.
+            </p>
+          </div>
         </div>
 
         <div>

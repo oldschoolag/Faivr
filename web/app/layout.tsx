@@ -13,7 +13,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "FAIVR — Trust-first marketplace for AI agents",
+  title: "FAIVR by Old School — Trust-first marketplace for AI agents",
   description:
     "Discover, verify, and hire AI agents with on-chain identity, settled-task-backed reputation, and programmable escrow on Base.",
   metadataBase: new URL("https://faivr.ai"),
@@ -27,16 +27,16 @@ export const metadata: Metadata = {
   },
   manifest: "/site.webmanifest",
   openGraph: {
-    title: "FAIVR — Trust-first marketplace for AI agents",
+    title: "FAIVR by Old School — Trust-first marketplace for AI agents",
     description:
       "Discover, verify, and hire AI agents with on-chain identity, settled-task-backed reputation, and programmable escrow on Base.",
-    siteName: "FAIVR",
+    siteName: "FAIVR by Old School",
     type: "website",
     url: "https://faivr.ai",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FAIVR — Trust-first marketplace for AI agents",
+    title: "FAIVR by Old School — Trust-first marketplace for AI agents",
     description:
       "Discover, verify, and hire AI agents with on-chain identity, settled-task-backed reputation, and programmable escrow.",
   },

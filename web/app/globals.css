@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand-ink: #101114;
+  --brand-slate: #5d6470;
+  --brand-paper: #f6f4ef;
+  --brand-mist: #d7dde7;
+  --brand-line: rgba(16, 17, 20, 0.08);
+  --brand-accent: #4d6bff;
+  --faivr-accent: #5b8cff;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -12,10 +22,10 @@ html {
 
 body {
   background:
-    radial-gradient(circle at top left, rgba(186, 230, 253, 0.45), transparent 28%),
-    radial-gradient(circle at top right, rgba(187, 247, 208, 0.35), transparent 24%),
-    linear-gradient(180deg, #f8fbff 0%, #f4f7fb 42%, #eef3f8 100%);
-  color: #0f172a;
+    radial-gradient(circle at top left, rgba(91, 140, 255, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(215, 221, 231, 0.42), transparent 24%),
+    linear-gradient(180deg, #fbfaf7 0%, var(--brand-paper) 44%, #f1eee8 100%);
+  color: var(--brand-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -25,7 +35,7 @@ a {
 }
 
 ::selection {
-  background: rgba(14, 165, 233, 0.18);
+  background: rgba(77, 107, 255, 0.18);
 }
 
 .skip-to-content {

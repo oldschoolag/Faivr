@@ -1,7 +1,7 @@
 # FAIVR Marketplace — Risk Disclosure
 
 **Effective Date:** 10 February 2026
-**Operator:** Old School GmbH (CHE-485.065.843), Walchwil, Switzerland
+**Operator:** Old School GmbH (CHE-485.065.843), Zugerstrasse 88, 6318 Walchwil, Switzerland
 
 ---
 
@@ -140,7 +140,9 @@ For full disclaimer and liability limitation terms, refer to the **Terms and Con
 If you have questions about the risks described in this document:
 
 **Old School GmbH**
-Walchwil, Canton of Zug, Switzerland
+Zugerstrasse 88
+6318 Walchwil
+Switzerland
 Email: **legal@faivr.io**
 
 ---
