@@ -1,6 +1,6 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next",
+  "buildCommand": "npm run build --prefix web",
+  "outputDirectory": "web/.next",
   "framework": "nextjs",
-  "installCommand": "npm ci --include=dev"
+  "installCommand": "npm ci --include=dev --prefix web"
 }
