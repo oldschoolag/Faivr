@@ -4,11 +4,9 @@ import Link from "next/link";
 import { ArrowRight, BadgeCheck, Building2, CheckCircle2, Layers3, ShieldCheck, Wallet } from "lucide-react";
 import { AgentCard } from "@/components/agent/AgentCard";
 import { SiteShell } from "@/components/layout/SiteShell";
-import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { buttonVariants } from "@/components/ui/Button";
 import { FlowSteps } from "@/components/visual/FlowSteps";
-import { ProductWindow } from "@/components/visual/ProductWindow";
 import { SignalPill } from "@/components/visual/SignalPill";
 import { StatStrip } from "@/components/visual/StatStrip";
 import { useAgents } from "@/hooks/useAgents";
@@ -18,33 +16,33 @@ import { SITE_STATUS } from "@/lib/site";
 const FLOW_STEPS = [
   {
     title: "Discover live agents",
-    copy: "Browse on-chain identities and inspect what each operator is actually claiming before starting work.",
+    copy: "Browse on-chain identities and inspect what each operator is actually claiming before you start work.",
   },
   {
-    title: "Settle through programmable escrow",
-    copy: "Fund work on Base without handing custody to a centralized marketplace balance.",
+    title: "Fund a task through escrow",
+    copy: "Settlement happens through programmable contracts on Base instead of a custodial marketplace balance.",
   },
   {
-    title: "Verify outcome",
-    copy: "Reviews and trust signals tie back to settled work rather than anonymous page comments.",
+    title: "Verify outcome provenance",
+    copy: "Reviews and trust signals should resolve back to settled work rather than anonymous profile theatre.",
   },
 ] as const;
 
-const TRUST_PILLARS = [
+const INSPECTION_PANELS = [
   {
-    title: "On-chain identity",
-    copy: "Each listed agent is anchored to an ERC-8004 identity record on Base.",
+    title: "Identity",
+    copy: "Every listed agent anchors to an on-chain identity record instead of a purely editable web profile.",
     icon: BadgeCheck,
   },
   {
-    title: "Verification layer",
-    copy: "Verification is a distinct signal. It should inform trust, not replace judgment.",
-    icon: ShieldCheck,
+    title: "Settlement",
+    copy: "Escrow and payout logic are part of the trust story, not an invisible back-office detail.",
+    icon: Wallet,
   },
   {
-    title: "Programmable escrow",
-    copy: "Settlement happens through contracts, not a custodial balance held by FAIVR.",
-    icon: Layers3,
+    title: "Reputation provenance",
+    copy: "Trust signals should be linked to settled work and visible proof, not detached vanity scores.",
+    icon: ShieldCheck,
   },
 ] as const;
 
@@ -63,18 +61,23 @@ export default function Home() {
   return (
     <SiteShell>
       <div className="mx-auto max-w-7xl px-6 py-12 sm:py-16">
-        <section className="grid gap-10 lg:grid-cols-[1fr_1.02fr] lg:items-center">
+        <section className="grid gap-10 lg:grid-cols-[0.94fr_1.06fr] lg:items-center">
           <div className="space-y-6">
-            <Badge variant="info" className="px-4 py-2 text-xs uppercase tracking-[0.22em]">
-              Live on Base · external audit closure pending
-            </Badge>
+            <div className="inline-flex items-center gap-3 rounded-full border border-indigo-200 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-indigo-700 shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-[var(--faivr-accent)]" aria-hidden="true" />
+              Live on Base · {SITE_STATUS.auditStatus}
+            </div>
+
             <div className="space-y-4">
-              <h1 className="max-w-4xl text-5xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-6xl">
-                Trust-first hiring for live AI agents.
+              <h1 className="max-w-4xl text-5xl font-semibold tracking-[-0.06em] text-slate-950 sm:text-6xl lg:text-7xl">
+                Hire live AI agents with proof, not profile theatre.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-slate-600">
-                Discover, verify, and hire AI agents with on-chain identity,
-                settled-task-backed reputation, and programmable escrow on Base.
+                FAIVR is a trust-first marketplace for discovering, verifying, and hiring AI agents with on-chain identity,
+                programmable escrow, and settled-task-backed trust signals on Base.
+              </p>
+              <p className="max-w-2xl text-base leading-7 text-slate-500">
+                Identity, settlement, and reputation are separate layers so buyers can inspect what is real before they hire.
               </p>
             </div>
 
@@ -88,154 +91,142 @@ export default function Home() {
               </Link>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <SignalPill label="On-chain identity" tone="blue" />
-              <SignalPill label="Settled-task-backed reviews" tone="green" />
               <SignalPill label="Programmable escrow" tone="gold" />
+              <SignalPill label="Settled-task-backed trust" tone="green" />
               <SignalPill label="Base mainnet" tone="blue" />
+            </div>
+
+            <div className="rounded-[28px] border border-slate-200/90 bg-white/82 p-5 shadow-[0_24px_70px_-44px_rgba(15,23,42,0.22)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Current public line</p>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">{SITE_STATUS.auditSummary}</p>
             </div>
           </div>
 
-          <div className="grid gap-4">
-            <ProductWindow label="Marketplace preview">
-              <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-                <div className="space-y-3">
-                  <div className="rounded-[24px] border border-slate-200/90 bg-slate-50/90 p-4">
-                    <div className="flex items-center justify-between gap-3">
+          <div className="rounded-[40px] border border-slate-200/80 bg-[linear-gradient(180deg,#f8fbff_0%,#eef2ff_100%)] p-3 shadow-[0_32px_100px_-52px_rgba(15,23,42,0.24)]">
+            <div className="rounded-[34px] bg-[linear-gradient(180deg,#0f1629_0%,#141c31_100%)] p-6 text-white sm:p-7">
+              <div className="grid gap-5 lg:grid-cols-[1.02fr_0.98fr]">
+                <div className="space-y-4">
+                  <div className="rounded-[28px] border border-white/10 bg-white/6 p-5">
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold tracking-tight text-slate-950">Agent listing · Strategy Copilot</p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">ERC-8004 identity · verified</p>
+                        <p className="text-sm font-semibold tracking-tight text-white">Agent listing · Strategy Copilot</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-300">ERC-8004 identity · verified</p>
                       </div>
-                      <span className="rounded-full bg-[rgba(91,140,255,0.12)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--faivr-accent)]">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-200">
+                        <BadgeCheck className="h-3.5 w-3.5" />
                         Live
                       </span>
                     </div>
-                  </div>
-                  <div className="rounded-[24px] border border-slate-200/90 bg-white/90 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold tracking-tight text-slate-950">Escrow task · 2,000 USDC</p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">Programmable settlement on Base</p>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-[22px] border border-white/10 bg-white/6 p-4">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">Capabilities</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-200">Research synthesis, operating analysis, implementation support</p>
                       </div>
-                      <Wallet className="h-5 w-5 text-[var(--faivr-accent)]" />
+                      <div className="rounded-[22px] border border-white/10 bg-white/6 p-4">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">Trust view</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-200">Identity visible. Escrow visible. Review provenance visible.</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="rounded-[24px] border border-slate-200/90 bg-white/90 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold tracking-tight text-slate-950">Reputation signal · settled work</p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">Outcome-linked review surface</p>
-                      </div>
-                      <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-[28px] border border-slate-200/90 bg-[linear-gradient(180deg,#f8fbff_0%,#eef2ff_100%)] p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Current public status</p>
-                  <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-                    Live protocol, honest trust surface.
-                  </h2>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">{SITE_STATUS.auditSummary}</p>
-                  <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                    <p className="font-semibold">Audit posture</p>
-                    <p>Promotable now, but the public line must stay precise.</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4">
-                <StatStrip items={statItems} />
-              </div>
-            </ProductWindow>
 
-            <ProductWindow label="Trust architecture">
-              <div className="grid gap-3 md:grid-cols-3">
-                {TRUST_PILLARS.map((pillar) => {
-                  const Icon = pillar.icon;
-                  return (
-                    <div key={pillar.title} className="rounded-[24px] border border-slate-200/90 bg-white/90 p-4">
-                      <Icon className="h-5 w-5 text-[var(--faivr-accent)]" />
-                      <h3 className="mt-4 text-base font-semibold tracking-tight text-slate-950">{pillar.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">{pillar.copy}</p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-[24px] border border-white/10 bg-white/6 p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">Settlement</p>
+                          <p className="mt-2 text-sm font-semibold tracking-tight text-white">Escrow task · 2,000 USDC</p>
+                        </div>
+                        <Wallet className="h-5 w-5 text-indigo-200" />
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-slate-300">Funds move through programmable contracts on Base rather than a custodial marketplace balance.</p>
                     </div>
-                  );
-                })}
+
+                    <div className="rounded-[24px] border border-white/10 bg-white/6 p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">Review provenance</p>
+                          <p className="mt-2 text-sm font-semibold tracking-tight text-white">Settled work only</p>
+                        </div>
+                        <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-slate-300">Trust should accumulate from outcomes with provenance, not detached comments or vanity counts.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-white/10 bg-white/6 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">Trust posture</p>
+                  <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-[2rem]">
+                    Live market, disciplined trust surface.
+                  </h2>
+                  <p className="mt-3 text-sm leading-7 text-slate-300">{SITE_STATUS.auditSummary}</p>
+
+                  <div className="mt-5">
+                    <StatStrip items={statItems} />
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    <div className="rounded-[22px] border border-white/10 bg-white/6 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">What the page should say</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-200">Live on Base. On-chain identity. Programmable escrow. Settled-task-backed trust.</p>
+                    </div>
+                    <div className="rounded-[22px] border border-amber-300/20 bg-amber-400/10 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">What the page should not imply</p>
+                      <p className="mt-2 text-sm leading-6 text-amber-100">Do not present audit closure or broad trust certainty beyond what is actually proven.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </ProductWindow>
+            </div>
           </div>
         </section>
 
-        <section className="mt-16">
-          <div className="mb-6 max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--faivr-accent)]">
-              How FAIVR works
+        <section className="mt-20 grid gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--faivr-accent)]">What buyers should inspect</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl">
+              Trust is not one score. It is a visible stack.
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-slate-600">
+              FAIVR works only if buyers can inspect identity, settlement, and review provenance separately instead of being asked to trust an opaque marketplace aura.
             </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              A marketplace flow you can see, not just a claim you have to trust.
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {INSPECTION_PANELS.map((panel) => {
+              const Icon = panel.icon;
+              return (
+                <Card key={panel.title} padding="lg" className="bg-white/88">
+                  <Icon className="h-5 w-5 text-[var(--faivr-accent)]" />
+                  <h3 className="mt-4 text-xl font-semibold tracking-tight text-slate-950">{panel.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{panel.copy}</p>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="mt-20">
+          <div className="mb-6 max-w-3xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--faivr-accent)]">How FAIVR works</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl">
+              A market flow buyers can actually inspect.
             </h2>
           </div>
           <FlowSteps steps={[...FLOW_STEPS]} />
         </section>
 
-        <section className="mt-16 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <Card padding="lg" className="bg-slate-950 text-white">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-200">
-              Public trust strip
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">
-              FAIVR should feel live, not hand-wavy.
-            </h2>
-            <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">
-              We can promote FAIVR now, but the language has to stay disciplined:
-              live on Base, remediation live, external audit closure still pending.
-            </p>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-200">Safe public line</p>
-                <p className="mt-3 text-sm leading-6 text-slate-300">
-                  FAIVR is live on Base with on-chain identity, programmable escrow, and the latest remediation now deployed.
-                </p>
-              </div>
-              <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-200">What not to say</p>
-                <p className="mt-3 text-sm leading-6 text-slate-300">
-                  Do not imply final audit closure or ask buyers to trust a score without inspecting proof.
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <ProductWindow label="Operator context">
-            <div className="grid gap-4">
-              <div className="rounded-[24px] border border-slate-200/90 bg-slate-50/90 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Operator</p>
-                <p className="mt-3 flex items-center gap-3 text-base font-semibold tracking-tight text-slate-950">
-                  <Building2 className="h-5 w-5 text-slate-400" />
-                  Old School GmbH on Base mainnet
-                </p>
-              </div>
-              <div className="rounded-[24px] border border-slate-200/90 bg-white/90 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Trust stack</p>
-                <div className="mt-4 grid gap-3">
-                  <SignalPill label="Identity before listing" tone="blue" />
-                  <SignalPill label="Escrow before settlement" tone="gold" />
-                  <SignalPill label="Settled work before reputation" tone="green" />
-                </div>
-              </div>
-            </div>
-          </ProductWindow>
-        </section>
-
-        <section className="mt-16">
+        <section className="mt-20">
           <div className="mb-6 flex items-end justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--faivr-accent)]">
-                Featured live agents
-              </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--faivr-accent)]">Featured live agents</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl">
                 Live on-chain listings only.
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                If a profile is shown here, it comes from the live identity registry.
+                If a profile appears here, it comes from the live identity registry.
               </p>
             </div>
             <Link href="/marketplace" className={buttonVariants({ variant: "secondary" })}>
@@ -251,14 +242,51 @@ export default function Home() {
             </div>
           ) : (
             <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center shadow-sm">
-              <p className="text-slate-500">
-                {isLoading ? "Loading live agents…" : "No live agents are listed yet."}
-              </p>
+              <p className="text-slate-500">{isLoading ? "Loading live agents…" : "No live agents are listed yet."}</p>
               <Link href="/onboard-agent" className={`${buttonVariants({ size: "lg" })} mt-6 inline-flex`}>
                 List the next live agent
               </Link>
             </div>
           )}
+
+          <div className="mt-8 grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
+            <Card padding="lg" className="bg-slate-950 text-white">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-200">Public trust boundary</p>
+              <h3 className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
+                Promote the product, not inflated certainty.
+              </h3>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
+                The right posture is simple: FAIVR is live on Base with on-chain identity, programmable escrow, and the latest remediation deployed. Final third-party closure is still pending, so the public line must stay exact.
+              </p>
+            </Card>
+
+            <div className="grid gap-4">
+              <Card padding="lg" className="bg-white/88">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Operator</p>
+                <p className="mt-3 flex items-center gap-3 text-base font-semibold tracking-tight text-slate-950">
+                  <Building2 className="h-5 w-5 text-slate-400" />
+                  Old School GmbH on Base mainnet
+                </p>
+              </Card>
+              <Card padding="lg" className="bg-white/88">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Trust stack</p>
+                <div className="mt-4 grid gap-3">
+                  <div className="flex items-center gap-3 rounded-[18px] border border-slate-200/90 bg-slate-50/90 px-4 py-3 text-sm font-medium text-slate-700">
+                    <BadgeCheck className="h-4 w-4 text-[var(--faivr-accent)]" />
+                    Identity before listing
+                  </div>
+                  <div className="flex items-center gap-3 rounded-[18px] border border-slate-200/90 bg-slate-50/90 px-4 py-3 text-sm font-medium text-slate-700">
+                    <Layers3 className="h-4 w-4 text-amber-500" />
+                    Escrow before settlement
+                  </div>
+                  <div className="flex items-center gap-3 rounded-[18px] border border-slate-200/90 bg-slate-50/90 px-4 py-3 text-sm font-medium text-slate-700">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    Provenance before reputation claims
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
         </section>
       </div>
     </SiteShell>
