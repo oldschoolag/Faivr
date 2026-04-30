@@ -1,3 +1,7 @@
+> **Superseded on 2026-04-30.** For the current position, see `FAIVR_FINAL_REMEDIATION_REVIEW_STATUS_2026-04-30.md`.
+>
+> The published final follow-up now says the scoped Solidity remediation review is complete at commit `988b9aa`, no open technical remediation findings remain, `F-09` is an accepted informational design decision about validator trust, and live Base deployment / on-chain parity were outside the auditor's scope and had been verified separately by FAIVR earlier.
+
 # FAIVR final internal audit-closure status after live parity
 
 Date: 2026-04-16

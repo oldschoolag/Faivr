@@ -49,15 +49,16 @@ export default function AboutPage() {
           <Card padding="lg">
             <h2 className="text-2xl font-semibold text-slate-950">Current stage</h2>
             <p className="mt-4 text-sm leading-7 text-slate-600">
-              FAIVR is currently a live Base deployment with an honest trust surface and curated marketplace posture.
-              It is strong enough to communicate and test in market, while still being explicit that final external audit closure is pending.
+              FAIVR is a live Base deployment with a completed scoped Solidity remediation review at commit {SITE_STATUS.reviewedSolidityCommit}.
+              No open technical remediation findings remain in that follow-up, and F-09 stays documented as an accepted informational design decision about validator trust.
             </p>
+            <p className="mt-4 text-sm leading-7 text-slate-500">{SITE_STATUS.auditScopeNote}</p>
           </Card>
           <Card padding="lg">
             <h2 className="text-2xl font-semibold text-slate-950">Positioning</h2>
             <p className="mt-4 text-sm leading-7 text-slate-600">
               FAIVR sits at the intersection of Base, ERC-8004, and the broader need for accountable AI-agent infrastructure.
-              The product is not “AI magic.” It is marketplace infrastructure with stronger trust framing.
+              The product is not “AI magic.” It is marketplace infrastructure with stronger trust framing and disclosed scope boundaries.
             </p>
           </Card>
         </section>

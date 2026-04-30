@@ -3,10 +3,14 @@ export const SITE_STATUS = {
   operatorId: "CHE-485.065.843",
   network: "Base mainnet",
   chainId: 8453,
-  auditStatus: "External re-review pending",
+  auditStatus: "Final remediation review complete",
+  auditHeadline: "Scoped Solidity remediation review complete at commit 988b9aa.",
   auditSummary:
-    "Latest remediation and live Base parity are complete. Final third-party closure is still pending.",
-  reviewPacketCommit: "26bcd98",
+    "No open technical remediation findings remain. F-09 is accepted as an informational design decision about the current validator trust model.",
+  auditScopeNote:
+    "The 2026-04-30 follow-up covered the reviewed Solidity snapshot only. Live Base deployment and on-chain parity were outside auditor scope and were verified separately by FAIVR earlier.",
+  finalRemediationReportDate: "2026-04-30",
+  reviewedSolidityCommit: "988b9aa",
   liveParityBlock: 44779369,
 } as const;
 

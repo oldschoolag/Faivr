@@ -11,6 +11,7 @@ import { SiteShell } from "@/components/layout/SiteShell";
 import { Badge } from "@/components/ui/Badge";
 import { useAgents } from "@/hooks/useAgents";
 import { useContractStats } from "@/hooks/useContractStats";
+import { SITE_STATUS } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 const TABS = ["Marketplace", "My Tasks"] as const;
@@ -85,7 +86,7 @@ export default function MarketplacePage() {
             <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
               <ShieldCheck className="h-5 w-5 text-sky-600" />
               <p className="mt-4 text-sm font-semibold text-slate-950">Trust-first posture</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">Audit closure still pending.</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{SITE_STATUS.auditStatus}.</p>
             </div>
           </div>
         </section>

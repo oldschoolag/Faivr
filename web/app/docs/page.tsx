@@ -2,8 +2,8 @@ import { ExternalLink, FileCheck2, Layers3, ShieldCheck, Wallet } from "lucide-r
 import { SiteShell } from "@/components/layout/SiteShell";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
-import { BASESCAN_ROOT, REPO_URL, SITE_STATUS } from "@/lib/site";
 import { CONTRACTS } from "@/lib/contracts";
+import { BASESCAN_ROOT, REPO_URL, SITE_STATUS } from "@/lib/site";
 
 const CONTRACTS_TABLE = [
   { name: "Identity Registry", address: CONTRACTS.identity },
@@ -74,7 +74,7 @@ export default function DocsPage() {
             <FileCheck2 className="h-5 w-5 text-sky-600" />
             <h2 className="mt-4 text-xl font-semibold text-slate-950">Audit posture</h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              Latest remediation and live Base parity are complete. External audit closure is still pending.
+              {SITE_STATUS.auditHeadline} {SITE_STATUS.auditSummary}
             </p>
           </Card>
           <Card>
@@ -83,6 +83,18 @@ export default function DocsPage() {
             <p className="mt-3 text-sm leading-6 text-slate-600">
               FAIVR currently runs on {SITE_STATUS.network} (chain ID {SITE_STATUS.chainId}).
             </p>
+          </Card>
+        </section>
+
+        <section>
+          <h2 className="text-3xl font-semibold tracking-tight text-slate-950">Review scope and caveats</h2>
+          <Card padding="lg" className="mt-4">
+            <ul className="space-y-3 text-sm leading-7 text-slate-600">
+              <li>• The final remediation follow-up is dated {SITE_STATUS.finalRemediationReportDate} and applies to commit {SITE_STATUS.reviewedSolidityCommit}.</li>
+              <li>• No open technical remediation findings remain in that scoped Solidity review.</li>
+              <li>• F-09 remains documented as an accepted informational design decision about the validator trust model.</li>
+              <li>• Live Base deployment and on-chain parity were outside the auditor&apos;s scope and were verified separately by FAIVR earlier.</li>
+            </ul>
           </Card>
         </section>
 

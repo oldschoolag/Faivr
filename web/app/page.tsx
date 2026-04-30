@@ -100,7 +100,10 @@ export default function Home() {
 
             <div className="rounded-[28px] border border-slate-200/90 bg-white/82 p-5 shadow-[0_24px_70px_-44px_rgba(15,23,42,0.22)]">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Current public line</p>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">{SITE_STATUS.auditSummary}</p>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+                {SITE_STATUS.auditHeadline} {SITE_STATUS.auditSummary}
+              </p>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">{SITE_STATUS.auditScopeNote}</p>
             </div>
           </div>
 
@@ -161,7 +164,10 @@ export default function Home() {
                   <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-[2rem]">
                     Live market, disciplined trust surface.
                   </h2>
-                  <p className="mt-3 text-sm leading-7 text-slate-300">{SITE_STATUS.auditSummary}</p>
+                  <p className="mt-3 text-sm leading-7 text-slate-300">
+                    {SITE_STATUS.auditHeadline} {SITE_STATUS.auditSummary}
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-slate-400">{SITE_STATUS.auditScopeNote}</p>
 
                   <div className="mt-5">
                     <StatStrip items={statItems} />
@@ -170,11 +176,15 @@ export default function Home() {
                   <div className="mt-5 space-y-3">
                     <div className="rounded-[22px] border border-white/10 bg-white/6 p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">What the page should say</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-200">Live on Base. On-chain identity. Programmable escrow. Settled-task-backed trust.</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-200">
+                        Live on Base. Final remediation review complete for the scoped Solidity snapshot. Trust signals stay inspectable, not absolute.
+                      </p>
                     </div>
                     <div className="rounded-[22px] border border-amber-300/20 bg-amber-400/10 p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">What the page should not imply</p>
-                      <p className="mt-2 text-sm leading-6 text-amber-100">Do not present audit closure or broad trust certainty beyond what is actually proven.</p>
+                      <p className="mt-2 text-sm leading-6 text-amber-100">
+                        Do not imply that live deployment, on-chain parity, or validator independence were covered beyond the disclosed scope.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -256,7 +266,7 @@ export default function Home() {
                 Promote the product, not inflated certainty.
               </h3>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-                The right posture is simple: FAIVR is live on Base with on-chain identity, programmable escrow, and the latest remediation deployed. Final third-party closure is still pending, so the public line must stay exact.
+                The right posture is simple: FAIVR can now say the scoped Solidity remediation review is complete at commit 988b9aa and that no open technical remediation findings remain. Keep the caveat equally visible: F-09 is an accepted informational validator-trust design decision, and live Base deployment plus on-chain parity were outside the auditor's scope.
               </p>
             </Card>
 
